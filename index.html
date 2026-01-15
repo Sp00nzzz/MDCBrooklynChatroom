@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arkham Asylum - FPS Prison</title>
+  <link rel="stylesheet" href="/src/chat/chat.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      overflow: hidden;
+      font-family: 'Courier New', monospace;
+      background: #000;
+    }
+    
+    #canvas-container {
+      width: 100vw;
+      height: 100vh;
+    }
+    
+    #instructions {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 15px;
+      border-radius: 5px;
+      font-size: 14px;
+      z-index: 100;
+      pointer-events: none;
+    }
+    
+    #instructions h3 {
+      margin-bottom: 10px;
+      color: #ff6b6b;
+    }
+    
+    #instructions ul {
+      list-style: none;
+      padding-left: 0;
+    }
+    
+    #instructions li {
+      margin: 5px 0;
+    }
+    
+    #instructions.hidden {
+      display: none;
+    }
+    
+    #coordinate-indicator {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: #fff;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 8px 15px;
+      border-radius: 5px;
+      font-size: 14px;
+      font-family: 'Courier New', monospace;
+      z-index: 100;
+      pointer-events: none;
+      white-space: nowrap;
+      display: none;
+    }
+    
+    #clock-indicator {
+      position: absolute;
+      bottom: 25px;
+      left: 2px;
+      color: #fff;
+      padding: 8px 15px;
+      border-radius: 5px;
+      font-size: 16px;
+      font-family: 'Comic Sans MS', 'Comic Sans', cursive;
+      z-index: 100;
+      pointer-events: none;
+      white-space: nowrap;
+      display: none;
+    }
+    
+    #location-indicator {
+      position: absolute;
+      bottom: 2px;
+      left: 2px;
+      color: #fff;
+      padding: 8px 15px;
+      border-radius: 5px;
+      font-size: 16px;
+      font-family: 'Comic Sans MS', 'Comic Sans', cursive;
+      z-index: 100;
+      pointer-events: none;
+      white-space: nowrap;
+      display: none;
+    }
+    
+    #coordinate-indicator.visible,
+    #clock-indicator.visible,
+    #location-indicator.visible {
+      display: block;
+    }
+    
+    #start-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: #ffffff;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-start;
+      z-index: 1000;
+      cursor: pointer;
+    }
+    
+    #start-screen.hidden {
+      display: none;
+    }
+    
+    #start-screen.fading {
+      opacity: 0;
+      transition: opacity 1s ease-out;
+    }
+    
+    #start-screen-content {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      position: relative;
+      padding-left: 15px;
+    }
+    
+    #start-screen-title {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 2.5rem;
+      color: #000000;
+      font-weight: normal;
+      margin-bottom: 0.5rem;
+      text-align: left;
+    }
+    
+    #start-screen-subtitle {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 1.5rem;
+      color: #000000;
+      font-weight: normal;
+      margin-bottom: 0.5rem;
+      text-align: left;
+    }
+    
+    #start-screen-click {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 1rem;
+      color: #A9A9A9;
+      font-weight: normal;
+      margin-top: 0.5rem;
+      text-align: left;
+      cursor: pointer;
+    }
+    
+    #start-screen-image {
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      width: 50vw;
+      height: 100vh;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding: 20px;
+      padding-bottom: 0;
+      box-sizing: border-box;
+    }
+    
+    #start-screen-image img {
+      max-width: 140%;
+      max-height: 140%;
+      object-fit: contain;
+      transform: scale(1.2);
+    }
+    
+    #start-screen-credit {
+      position: absolute;
+      bottom: 15px;
+      left: 15px;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 1rem;
+      color: #A9A9A9;
+      z-index: 1001;
+    }
+    
+    #canvas-container {
+      display: none;
+    }
+    
+    #canvas-container.visible {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div id="start-screen">
+    <div id="start-screen-content">
+      <div id="start-screen-title">metropolitan detention center Brooklyn</div>
+      <div id="start-screen-subtitle">3D chatroom edition</div>
+      <div id="start-screen-click">click to start</div>
+    </div>
+    <div id="start-screen-image">
+      <img id="carousel-image" src="" alt="">
+    </div>
+    <div id="start-screen-credit">@immike_wing</div>
+  </div>
+  <div id="canvas-container"></div>
+  <div id="coordinate-indicator">X: 0.00 Y: 0.00 Z: 0.00</div>
+  <div id="clock-indicator">9:00AM</div>
+  <div id="location-indicator">Location: MDC Brooklyn</div>
+  <script>
+    // Image carousel for start screen
+    const images = [
+      '/loadingscreen/diddy.png',
+      '/loadingscreen/luigifront.png',
+      '/loadingscreen/madurofront.png',
+      '/loadingscreen/maxwellfront.png',
+      '/loadingscreen/SBF.png',
+      '/loadingscreen/6ix9ine.png',
+      '/loadingscreen/martin.png',
+      '/loadingscreen/rkelly.png'
+    ];
+    
+    let currentImageIndex = 0;
+    const carouselImage = document.getElementById('carousel-image');
+    
+    function updateCarouselImage() {
+      if (carouselImage && images.length > 0) {
+        carouselImage.src = images[currentImageIndex];
+        currentImageIndex = (currentImageIndex + 1) % images.length;
+      }
+    }
+    
+    // Start the carousel when page loads
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+        updateCarouselImage();
+        setInterval(updateCarouselImage, 700);
+      });
+    } else {
+      updateCarouselImage();
+      setInterval(updateCarouselImage, 700);
+    }
+  </script>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
