@@ -82,6 +82,15 @@ export class NPCSprite {
     
     // Identify Kool-Aid Man NPC by texture path or character name
     this.isKoolAidMan = texturePathStr.includes('koolaid') || charNameStr.includes('kool-aid man');
+    
+    // Identify 6ix9ine NPC by texture path or character name
+    this.is6ix9ine = texturePathStr.includes('6ix9ine') || charNameStr.includes('6ix9ine');
+    
+    // Identify Maduro NPC by texture path or character name
+    this.isMaduro = texturePathStr.includes('maduro') || charNameStr.includes('nicolas maduro');
+    
+    // Identify Cohen NPC by texture path or character name (matches Andy Cohen or Michael Cohen)
+    this.isCohen = texturePathStr.includes('cohen') || charNameStr.includes('cohen');
 
     // Movement/wander parameters
     this.baseY = this.position.y;           // Keep NPCs grounded at this Y
@@ -97,6 +106,12 @@ export class NPCSprite {
 
     // Reusable sphere for cheap sphere-vs-AABB checks
     this.collisionSphere = new THREE.Sphere(this.position.clone(), this.radius);
+
+    // Push/velocity system for physical interactions
+    this.velocity = new THREE.Vector3(0, 0, 0); // Current velocity
+    this.pushCooldown = 0; // Time remaining until this NPC can be pushed again
+    this.maxSpeed = 14.0; // Maximum velocity magnitude (increased for stronger pushes)
+    this.damping = 0.80; // Velocity damping per second (reduced for longer travel distance, applied as 0.80^(dt*60))
 
     // Create sprite - use provided texture, image path, or procedural texture
     let texture = null;
@@ -171,48 +186,93 @@ export class NPCSprite {
    * @param {number} deltaTime
    */
   moveWithCollision(deltaTime) {
-    // Direction vector in XZ from current yaw
-    const dirX = Math.sin(this.wanderYaw);
-    const dirZ = Math.cos(this.wanderYaw);
-
-    const step = this.moveSpeed * deltaTime;
-    let dx = dirX * step;
-    let dz = dirZ * step;
-
-    const originalYaw = this.wanderYaw;
-    let collidedX = false;
-    let collidedZ = false;
-
-    // Keep NPC locked to floor height
-    this.position.y = this.baseY;
-
-    // --- X axis movement ---
-    if (dx !== 0) {
-      const targetX = this.position.x + dx;
+    // Apply velocity from push interactions first
+    if (this.velocity.lengthSq() > 0.001) {
+      // Apply velocity movement
+      const velocityStep = this.velocity.clone().multiplyScalar(deltaTime);
+      
+      // Try to move with velocity, checking collisions
+      const targetX = this.position.x + velocityStep.x;
+      const targetZ = this.position.z + velocityStep.z;
+      
+      // Check collisions for velocity movement
       if (!this.hasCollisionAt(targetX, this.position.z)) {
         this.position.x = targetX;
       } else {
-        // Cancel X movement when moving into collision
-        dx = 0;
-        collidedX = true;
+        // Bounce off wall: reverse X velocity
+        this.velocity.x *= -0.5;
       }
-    }
-
-    // --- Z axis movement ---
-    if (dz !== 0) {
-      const targetZ = this.position.z + dz;
+      
       if (!this.hasCollisionAt(this.position.x, targetZ)) {
         this.position.z = targetZ;
       } else {
-        // Cancel Z movement when moving into collision
-        dz = 0;
-        collidedZ = true;
+        // Bounce off wall: reverse Z velocity
+        this.velocity.z *= -0.5;
+      }
+      
+      // Apply damping to velocity
+      const dampingFactor = Math.pow(this.damping, deltaTime * 60);
+      this.velocity.multiplyScalar(dampingFactor);
+      
+      // Clamp max speed
+      if (this.velocity.length() > this.maxSpeed) {
+        this.velocity.normalize().multiplyScalar(this.maxSpeed);
+      }
+      
+      // If velocity is very small, zero it out
+      if (this.velocity.lengthSq() < 0.001) {
+        this.velocity.set(0, 0, 0);
       }
     }
 
-    // If we hit something, immediately "bounce/turn" away
-    if (collidedX || collidedZ) {
-      this.handleBounce(originalYaw, collidedX, collidedZ);
+    // Only apply wander movement if velocity is low (NPCs can't wander while being pushed)
+    if (this.velocity.lengthSq() < 0.5) {
+      // Direction vector in XZ from current yaw
+      const dirX = Math.sin(this.wanderYaw);
+      const dirZ = Math.cos(this.wanderYaw);
+
+      const step = this.moveSpeed * deltaTime;
+      let dx = dirX * step;
+      let dz = dirZ * step;
+
+      const originalYaw = this.wanderYaw;
+      let collidedX = false;
+      let collidedZ = false;
+
+      // Keep NPC locked to floor height
+      this.position.y = this.baseY;
+
+      // --- X axis movement ---
+      if (dx !== 0) {
+        const targetX = this.position.x + dx;
+        if (!this.hasCollisionAt(targetX, this.position.z)) {
+          this.position.x = targetX;
+        } else {
+          // Cancel X movement when moving into collision
+          dx = 0;
+          collidedX = true;
+        }
+      }
+
+      // --- Z axis movement ---
+      if (dz !== 0) {
+        const targetZ = this.position.z + dz;
+        if (!this.hasCollisionAt(this.position.x, targetZ)) {
+          this.position.z = targetZ;
+        } else {
+          // Cancel Z movement when moving into collision
+          dz = 0;
+          collidedZ = true;
+        }
+      }
+
+      // If we hit something, immediately "bounce/turn" away
+      if (collidedX || collidedZ) {
+        this.handleBounce(originalYaw, collidedX, collidedZ);
+      }
+    } else {
+      // Keep NPC locked to floor height during push
+      this.position.y = this.baseY;
     }
 
     // Update sprite world position after movement
@@ -320,6 +380,27 @@ export class NPCSprite {
   }
 
   /**
+   * Apply a push impulse to this NPC
+   * @param {THREE.Vector3} direction - Normalized direction vector (from player to NPC)
+   * @param {number} strength - Impulse strength (default: 4.0)
+   */
+  applyPush(direction, strength = 4.0) {
+    // Add upward bias (optional, makes push feel more dynamic)
+    const upwardBias = 0.2; // Slightly increased for more dramatic launch
+    const pushDirection = direction.clone();
+    pushDirection.y = upwardBias;
+    pushDirection.normalize();
+    
+    // Apply impulse to velocity (stronger impact)
+    this.velocity.add(pushDirection.multiplyScalar(strength));
+    
+    // Clamp to max speed immediately
+    if (this.velocity.length() > this.maxSpeed) {
+      this.velocity.normalize().multiplyScalar(this.maxSpeed);
+    }
+  }
+
+  /**
    * Update NPC position and billboard rotation.
    * @param {number} deltaTime - Time since last frame in seconds
    * @param {THREE.Camera} camera - Camera to face
@@ -329,6 +410,14 @@ export class NPCSprite {
    * @param {THREE.Scene} scene - Scene (for bubble removal)
    */
   update(deltaTime, camera, updateBubbleBillboardFn = null, updateBubbleLifetimeFn = null, disposeBubbleFn = null, scene = null) {
+    // Update push cooldown
+    if (this.pushCooldown > 0) {
+      this.pushCooldown -= deltaTime;
+      if (this.pushCooldown < 0) {
+        this.pushCooldown = 0;
+      }
+    }
+    
     this.updateWander(deltaTime);
     this.moveWithCollision(deltaTime);
     this.updateBillboard(camera);

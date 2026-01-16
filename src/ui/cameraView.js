@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { isPushActive } from '../pushInteraction.js';
 
 /**
  * In-Game Handheld Camera UI
@@ -39,6 +40,11 @@ let cameraFrameElement = null;
 let previewCanvas = null;
 let previewContext = null;
 let scanlineOverlay = null;
+
+// Animation cancellation tokens
+let switchToken = 0;
+let pendingTimeouts = [];
+let pendingRAF = [];
 
 // Preview resolution (16:9 aspect ratio, low resolution for performance)
 const PREVIEW_WIDTH = 256;
@@ -239,44 +245,202 @@ function createDOMElements() {
 }
 
 // ============================================================================
+// ANIMATION CANCELLATION
+// ============================================================================
+
+/**
+ * Cancel all pending animations, timeouts, and RAF callbacks
+ * Prevents stale animations from affecting the camera after item switches
+ */
+function cancelAllPendingAnimations() {
+  // Cancel all pending timeouts
+  pendingTimeouts.forEach(id => clearTimeout(id));
+  pendingTimeouts = [];
+  
+  // Note: We can't cancel RAF, but we increment switchToken to invalidate callbacks
+  switchToken++;
+}
+
+// ============================================================================
+// FORCE EQUIP STATE
+// ============================================================================
+
+/**
+ * Force the camera into a known-good equipped state
+ * Resets all transforms, positioning, and ensures correct parent/visibility
+ * This is the authoritative function that guarantees correct camera state
+ * 
+ * ROOT CAUSE: When switching from Item 2/3 -> Item 1, the camera container
+ * can have stale CSS transforms from previous animations or incomplete state
+ * transitions. This function ensures it's always in the correct canonical state.
+ * 
+ * OVERLAY FIX: Explicitly ensures held item HUD is hidden when camera is shown
+ * to prevent z-index conflicts and visual overlap.
+ */
+function forceEquipState(enabled) {
+  if (!containerElement) return;
+  
+  // HARD SAFETY GUARD: If push is active, force-hide camera
+  if (isPushActive()) {
+    containerElement.style.transition = 'none';
+    containerElement.style.display = 'none';
+    containerElement.style.transform = 'translateY(100%)';
+    return;
+  }
+  
+  // Cancel any pending animations first
+  cancelAllPendingAnimations();
+  
+  // CRITICAL: Ensure held item HUD is hidden when camera is shown
+  // Use direct DOM check to avoid circular dependency and timing issues
+  if (enabled) {
+    const hudEl = document.getElementById('held-item-hud');
+    if (hudEl) {
+      // Force instant hide of held item HUD
+      hudEl.style.transition = 'none';
+      hudEl.style.display = 'none';
+      hudEl.style.transform = 'translateY(100%)';
+      // Clear any current image path state by removing the image src
+      const img = hudEl.querySelector('#held-item-image');
+      if (img) {
+        img.src = '';
+      }
+    }
+  }
+  
+  // Get current switch token to guard against delayed callbacks
+  const currentToken = ++switchToken;
+  
+  if (enabled) {
+    // FORCE camera into visible, correctly positioned state
+    // Remove any stale transforms or positioning
+    containerElement.style.transition = 'none';
+    containerElement.style.display = 'block';
+    containerElement.style.opacity = '1';
+    containerElement.style.transform = 'translateY(0)';
+    containerElement.style.right = '0';
+    containerElement.style.bottom = '0';
+    containerElement.style.margin = '0';
+    containerElement.style.padding = '0';
+    containerElement.style.zIndex = '1000'; // Ensure camera is on top
+    
+    // Force reflow to apply changes immediately
+    containerElement.offsetHeight;
+    
+    // Restore transition for future animations (but not for this switch)
+    containerElement.style.transition = 'transform 0.3s ease-out';
+    
+    // Guard: Verify the state is correct after a frame
+    requestAnimationFrame(() => {
+      if (currentToken === switchToken && containerElement && isEnabled) {
+        // Double-check: if transform is wrong, fix it
+        const computedStyle = window.getComputedStyle(containerElement);
+        const transform = computedStyle.transform;
+        const display = computedStyle.display;
+        
+        // Ensure held item HUD is still hidden
+        const hudEl = document.getElementById('held-item-hud');
+        if (hudEl && hudEl.style.display !== 'none') {
+          hudEl.style.transition = 'none';
+          hudEl.style.display = 'none';
+          hudEl.style.transform = 'translateY(100%)';
+        }
+        
+        // Fix camera transform if wrong
+        if (transform && transform !== 'none' && !transform.includes('translateY(0)') && !transform.includes('matrix(1, 0, 0, 1, 0, 0)')) {
+          containerElement.style.transition = 'none';
+          containerElement.style.transform = 'translateY(0)';
+          containerElement.offsetHeight;
+          containerElement.style.transition = 'transform 0.3s ease-out';
+        }
+        
+        // Ensure camera is visible
+        if (display === 'none') {
+          containerElement.style.display = 'block';
+        }
+      }
+    });
+  } else {
+    // FORCE camera into hidden state
+    containerElement.style.transition = 'none';
+    containerElement.style.transform = 'translateY(100%)';
+    containerElement.style.display = 'none';
+    
+    // Restore transition for future use
+    const timeoutId = setTimeout(() => {
+      if (currentToken === switchToken && containerElement) {
+        containerElement.style.transition = 'transform 0.3s ease-out';
+      }
+    }, 0);
+    pendingTimeouts.push(timeoutId);
+  }
+}
+
+// ============================================================================
 // TOGGLE
 // ============================================================================
 
 /**
  * Toggle the camera view ON or OFF
+ * @param {boolean} skipAnimation - If true, instantly show/hide without animation (for item switching)
  * @returns {boolean} The new enabled state
  */
-export function toggleCameraView() {
+export function toggleCameraView(skipAnimation = false) {
+  // If push is active, allow logical state change but don't show visuals
+  if (isPushActive() && !skipAnimation) {
+    isEnabled = !isEnabled;
+    return isEnabled;
+  }
+  
   isEnabled = !isEnabled;
 
-  if (isEnabled) {
-    // Show the camera UI
-    // First, ensure it's visible but still translated down
-    containerElement.style.display = 'block';
-    containerElement.style.transform = 'translateY(100%)';
-    // Force a reflow to ensure the browser applies the initial transform
-    containerElement.offsetHeight;
-    // Then animate it up in the next frame
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        containerElement.style.transform = 'translateY(0)';
-      });
-    });
-    console.log('[CameraView] Enabled');
+  if (skipAnimation) {
+    // When switching items, use forceEquipState to guarantee correct state
+    forceEquipState(isEnabled);
   } else {
-    // Hide the camera UI with slide-down animation
-    containerElement.style.transform = 'translateY(100%)';
-    // Hide after transition completes
-    setTimeout(() => {
-      if (!isEnabled) {
-        containerElement.style.display = 'none';
-      }
-    }, 300); // Match transition duration (300ms)
-    console.log('[CameraView] Disabled');
+    // Normal toggle with animation
+    if (isEnabled) {
+      // Show the camera UI with animation
+      // Cancel any pending animations first
+      cancelAllPendingAnimations();
+      const currentToken = ++switchToken;
+      
+      // First, ensure it's visible but still translated down
+      containerElement.style.display = 'block';
+      containerElement.style.transform = 'translateY(100%)';
+      // Force a reflow to ensure the browser applies the initial transform
+      containerElement.offsetHeight;
+      // Then animate it up in the next frame
+      const raf1 = requestAnimationFrame(() => {
+        const raf2 = requestAnimationFrame(() => {
+          // Guard: only apply if this is still the current switch
+          if (currentToken === switchToken && containerElement && isEnabled) {
+            containerElement.style.transform = 'translateY(0)';
+          }
+        });
+        pendingRAF.push(raf2);
+      });
+      pendingRAF.push(raf1);
+    } else {
+      // Hide with slide-down animation
+      cancelAllPendingAnimations();
+      const currentToken = ++switchToken;
+      
+      containerElement.style.transform = 'translateY(100%)';
+      // Hide after transition completes
+      const timeoutId = setTimeout(() => {
+        if (currentToken === switchToken && !isEnabled && containerElement) {
+          containerElement.style.display = 'none';
+        }
+      }, 300); // Match transition duration (300ms)
+      pendingTimeouts.push(timeoutId);
+    }
   }
-
+  
+  console.log(`[CameraView] ${isEnabled ? 'Enabled' : 'Disabled'}`);
   return isEnabled;
 }
+
 
 /**
  * Check if camera view is currently enabled
@@ -362,6 +526,9 @@ export function updateCameraView() {
  * Dispose of all resources (call on teardown if needed)
  */
 export function disposeCameraView() {
+  // Cancel all pending animations
+  cancelAllPendingAnimations();
+  
   if (renderTarget) {
     renderTarget.dispose();
     renderTarget = null;
@@ -376,6 +543,9 @@ export function disposeCameraView() {
   previewCanvas = null;
   previewContext = null;
   isEnabled = false;
+  switchToken = 0;
+  pendingTimeouts = [];
+  pendingRAF = [];
 
   console.log('[CameraView] Disposed');
 }

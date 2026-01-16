@@ -27,7 +27,13 @@ import {
   initDiddyAudio, 
   updateDiddyAudio,
   initKoolAidAudio,
-  updateKoolAidAudio
+  updateKoolAidAudio,
+  init6ix9ineAudio,
+  update6ix9ineAudio,
+  initMaduroAudio,
+  updateMaduroAudio,
+  initCohenAudio,
+  updateCohenAudio
 } from './audio/proximityAudio.js';
 // Hotbar UI - item selection slots at bottom of screen
 import { 
@@ -64,6 +70,13 @@ import {
   spawnSmokePuff,
   updateSmokeVfx
 } from './vfx/smokeVfx.js';
+// Push Interaction - NPC push system with hand overlay
+import {
+  initPushInteraction,
+  updatePushInteraction,
+  cleanupPushInteraction,
+  isPushActive
+} from './pushInteraction.js';
 // Low-poly wooden table with baby oil images
 import { createTable, updateTablePickup, createTableCollider, checkTablePickup } from './table.js';
 // Settings UI - top right settings panel with master volume control
@@ -160,6 +173,36 @@ function initGame() {
   const table2Collider = createTableCollider(table2Position, false);
   colliders.push(table2Collider);
 
+  // Create poster on the wall above the cigarette table
+  // Left wall is at Z = -7.25, table is at X = -6.5, Z = -6.5
+  // Position poster at same X as table, on the wall surface, above the table
+  const textureLoader = new THREE.TextureLoader();
+  const posterTexture = textureLoader.load('/beastgames.jpg');
+  posterTexture.colorSpace = THREE.SRGBColorSpace;
+  
+  const posterMaterial = new THREE.MeshStandardMaterial({
+    map: posterTexture,
+    emissiveMap: posterTexture,
+    emissive: new THREE.Color(0xffffff),
+    emissiveIntensity: 0.8,
+    transparent: false
+  });
+  
+  // Create a plane for the poster (width x height)
+  const posterWidth = 3.0;
+  const posterHeight = 2.5;
+  const posterGeometry = new THREE.PlaneGeometry(posterWidth, posterHeight);
+  const poster = new THREE.Mesh(posterGeometry, posterMaterial);
+  
+  // Position: same X as table (-6.5), on wall surface (Z = -6.5, slightly in front of wall at -7.25)
+  // Y position: 2.5 units high (above the table which is ~0.85 units tall)
+  poster.position.set(-6.5, 2.5, -6.98);
+  
+  // Rotate to face the walkway (toward positive Z)
+  poster.rotation.y = 0; // Already facing the right direction
+  
+  scene.add(poster);
+
   // Create player
   player = createPlayer(camera, renderer.domElement, colliders);
 
@@ -218,6 +261,33 @@ function initGame() {
     console.warn('Kool-Aid Man NPC not found - proximity audio will not be available');
   }
 
+  // Find and initialize 6ix9ine NPC audio
+  const sixix9ineNpc = npcs.find(npc => npc.is6ix9ine);
+  if (sixix9ineNpc) {
+    init6ix9ineAudio(audioListener, sixix9ineNpc);
+  } else {
+    console.warn('6ix9ine NPC not found - proximity audio will not be available');
+  }
+
+  // Find and initialize Maduro NPC audio
+  const maduroNpc = npcs.find(npc => npc.isMaduro);
+  if (maduroNpc) {
+    initMaduroAudio(audioListener, maduroNpc);
+  } else {
+    console.warn('Maduro NPC not found - proximity audio will not be available');
+  }
+
+  // Find and initialize Cohen NPC audio
+  const cohenNpc = npcs.find(npc => npc.isCohen);
+  if (cohenNpc) {
+    initCohenAudio(audioListener, cohenNpc);
+  } else {
+    console.warn('Cohen NPC not found - proximity audio will not be available');
+  }
+
+  // Initialize push interaction system
+  initPushInteraction(npcs, camera, player.controls);
+
   // Clock for delta time
   clock = new THREE.Clock();
 
@@ -270,6 +340,8 @@ function initGame() {
       raycastTargets.push(child);
     }
   });
+  // Add poster to raycast targets so splats can spawn on it
+  raycastTargets.push(poster);
   
   initBabyOil({ scene, camera, raycastTargets });
   
@@ -326,6 +398,12 @@ function initGame() {
   // Update NPC proximity audio
   updateDiddyAudio(deltaTime, camera.position);
   updateKoolAidAudio(deltaTime, camera.position);
+  update6ix9ineAudio(deltaTime, camera.position);
+  updateMaduroAudio(deltaTime, camera.position);
+  updateCohenAudio(deltaTime, camera.position);
+  
+  // Update push interaction system
+  updatePushInteraction(deltaTime, camera.position);
   
   // Update floating baby oil pickup animation (bobbing)
   updateTablePickup(deltaTime);
@@ -387,7 +465,18 @@ function initGame() {
     if (event.code === 'KeyF') {
       const coordIndicator = document.getElementById('coordinate-indicator');
       if (coordIndicator) {
-        coordIndicator.style.display = coordIndicator.style.display === 'none' ? 'block' : 'none';
+        // Check if currently visible (either via class or inline style)
+        const isVisible = coordIndicator.classList.contains('visible') || 
+                         (coordIndicator.style.display !== 'none' && coordIndicator.style.display !== '');
+        if (isVisible) {
+          // Hide it
+          coordIndicator.classList.remove('visible');
+          coordIndicator.style.display = 'none';
+        } else {
+          // Show it
+          coordIndicator.classList.add('visible');
+          coordIndicator.style.display = 'block';
+        }
       }
     }
   });
@@ -406,37 +495,96 @@ function initGame() {
       const isNowSelected = setSelectedSlot(slotIndex);
       const newItemType = getSelectedItemType();
       
+      // If push is active, allow logical state change but don't show visuals
+      // Visuals will be restored correctly when push ends
+      if (isPushActive()) {
+        // Still update item selection state logically
+        // The setSelected functions will handle not showing visuals during push
+        if (previousItemType === 'babyoil' && newItemType !== 'babyoil') {
+          setBabyOilSelected(false, true);
+        }
+        if (previousItemType === 'marlboro' && newItemType !== 'marlboro') {
+          setMarlboroSelected(false, true);
+        }
+        if (newItemType === 'babyoil') {
+          setBabyOilSelected(true, true);
+        }
+        if (newItemType === 'marlboro') {
+          setMarlboroSelected(true, true);
+        }
+        return; // Don't show visuals during push
+      }
+      
+      // Detect if we're switching between items (not unequipping to empty)
+      const isSwitchingItems = previousItemType !== null && 
+                                newItemType !== null && 
+                                previousItemType !== newItemType;
+      
+      // CRITICAL: Hide outgoing items BEFORE showing incoming items
+      // This prevents overlay issues where multiple items are visible simultaneously
+      
+      // Handle baby oil deselection (hide first)
+      if (previousItemType === 'babyoil' && newItemType !== 'babyoil') {
+        setBabyOilSelected(false, isSwitchingItems);
+      }
+      
+      // Handle marlboro deselection (hide first)
+      if (previousItemType === 'marlboro' && newItemType !== 'marlboro') {
+        setMarlboroSelected(false, isSwitchingItems);
+      }
+      
+      // Handle camera deselection (hide first when switching away)
+      if (previousSlot === 1 && isCameraViewEnabled() && slotIndex !== 1) {
+        // Switching away from slot 1: put camera down
+        // Use instant switching if we're switching to another item
+        toggleCameraView(isSwitchingItems);
+      }
+      
+      // NOW show incoming items (after outgoing items are hidden)
+      // Synchronous execution ensures proper ordering
+      
       // Handle camera for slot 1
       if (slotIndex === 1) {
         // Pressing 1: toggle camera based on selection state
         if (isNowSelected && !isCameraViewEnabled()) {
-          toggleCameraView(); // Bring camera up
+          // Final check: ensure held item HUD is hidden before showing camera
+          const hudEl = document.getElementById('held-item-hud');
+          if (hudEl && hudEl.style.display !== 'none') {
+            hudEl.style.transition = 'none';
+            hudEl.style.display = 'none';
+            hudEl.style.transform = 'translateY(100%)';
+            hudEl.offsetHeight; // Force reflow
+          }
+          toggleCameraView(isSwitchingItems); // Bring camera up
         } else if (!isNowSelected && isCameraViewEnabled()) {
-          toggleCameraView(); // Put camera down
+          toggleCameraView(isSwitchingItems); // Put camera down
         }
-      } else if (previousSlot === 1 && isCameraViewEnabled()) {
-        // Switching away from slot 1: put camera down
-        toggleCameraView();
       }
       
-      // Handle baby oil selection state
-      // Deselect baby oil if we were using it
-      if (previousItemType === 'babyoil' && newItemType !== 'babyoil') {
-        setBabyOilSelected(false);
-      }
-      // Select baby oil if the new slot contains it
+      // Handle baby oil selection (show after camera is handled)
       if (newItemType === 'babyoil') {
-        setBabyOilSelected(true);
+        // Final check: ensure camera is hidden before showing HUD
+        const cameraEl = document.getElementById('camera-view-container');
+        if (cameraEl && cameraEl.style.display !== 'none') {
+          cameraEl.style.transition = 'none';
+          cameraEl.style.display = 'none';
+          cameraEl.style.transform = 'translateY(100%)';
+          cameraEl.offsetHeight; // Force reflow
+        }
+        setBabyOilSelected(true, isSwitchingItems);
       }
       
-      // Handle marlboro selection state
-      // Deselect marlboro if we were using it
-      if (previousItemType === 'marlboro' && newItemType !== 'marlboro') {
-        setMarlboroSelected(false);
-      }
-      // Select marlboro if the new slot contains it
+      // Handle marlboro selection (show after camera is handled)
       if (newItemType === 'marlboro') {
-        setMarlboroSelected(true);
+        // Final check: ensure camera is hidden before showing HUD
+        const cameraEl = document.getElementById('camera-view-container');
+        if (cameraEl && cameraEl.style.display !== 'none') {
+          cameraEl.style.transition = 'none';
+          cameraEl.style.display = 'none';
+          cameraEl.style.transform = 'translateY(100%)';
+          cameraEl.offsetHeight; // Force reflow
+        }
+        setMarlboroSelected(true, isSwitchingItems);
       }
     }
   });
@@ -536,7 +684,7 @@ function setupStartScreen() {
         startScreen.classList.add('hidden');
         
         // Show the UI indicators now that the start screen is gone
-        document.getElementById('coordinate-indicator')?.classList.add('visible');
+        // Note: coordinate-indicator is NOT shown by default - user must press F to toggle it
         document.getElementById('clock-indicator')?.classList.add('visible');
         document.getElementById('location-indicator')?.classList.add('visible');
         
@@ -546,34 +694,13 @@ function setupStartScreen() {
         // Start background music when eyelid animation begins
         backgroundMusic = new Audio('/background music.mp3');
         backgroundMusic.loop = true;
-        backgroundMusic.volume = 0; // Start at 0 for fade-in
+        const baseVolume = 0.5; // Base volume at 50%
+        backgroundMusic.volume = baseVolume * getMasterVolume(); // Start at 50%
         
         // Play music (with error handling in case file doesn't exist)
         backgroundMusic.play().catch(error => {
           console.warn('Could not play background music:', error);
         });
-        
-        // Fade in the music over 3 seconds
-        const baseVolume = 0.5; // Base volume at 50%
-        const fadeDuration = 3000; // 3 seconds
-        const fadeStartTime = performance.now();
-        
-        function fadeInMusic() {
-          const elapsed = performance.now() - fadeStartTime;
-          const progress = Math.min(elapsed / fadeDuration, 1);
-          
-          // Ease-in for smooth fade
-          const easedProgress = easeInQuad(progress);
-          // Apply master volume multiplier
-          backgroundMusic.volume = baseVolume * easedProgress * getMasterVolume();
-          
-          if (progress < 1) {
-            requestAnimationFrame(fadeInMusic);
-          }
-        }
-        
-        // Start fade-in animation
-        fadeInMusic();
         
         // Register callback to update background music when master volume changes
         onVolumeChange((newVolume) => {

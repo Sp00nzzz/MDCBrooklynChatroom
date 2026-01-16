@@ -14,8 +14,9 @@
  */
 
 import * as THREE from 'three';
-import { showHeldItem, hideHeldItem, updateHeldItemHud, setHeldItemImage, triggerSqueezeAnimation } from '../ui/heldItemHud.js';
+import { showHeldItem, hideHeldItem, updateHeldItemHud, setHeldItemImage, triggerSqueezeAnimation, switchHeldItem } from '../ui/heldItemHud.js';
 import { triggerSquirt } from '../vfx/oilSquirtVfx.js';
+import { isPushActive } from '../pushInteraction.js';
 
 // ===========================================
 // CONSTANTS
@@ -374,7 +375,7 @@ function trySpawnSplatAtAim() {
     const normal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld).normalize();
     
     // Apply positional offset: LEFT by 20 pixels, UP by 15 pixels
-    // Convert pixel offsets to world space using camera's view vectors
+    // Project offset onto surface plane to keep splat on surface
     const offsetLeft = -20; // LEFT (negative right direction)
     const offsetUp = 15;    // UP (positive up direction)
     
@@ -390,12 +391,25 @@ function trySpawnSplatAtAim() {
     const fovRad = cameraRef.fov * Math.PI / 180;
     const pixelToWorldScale = (2 * Math.tan(fovRad / 2) * distanceToHit) / window.innerHeight;
     
-    // Calculate offset vector
-    const offsetVector = new THREE.Vector3();
-    offsetVector.addScaledVector(cameraRight, offsetLeft * pixelToWorldScale);
-    offsetVector.addScaledVector(cameraUp, offsetUp * pixelToWorldScale);
+    // Project camera vectors onto surface plane (perpendicular to surface normal)
+    // This ensures offset stays on the surface, not inside walls
+    const surfaceRight = new THREE.Vector3();
+    const surfaceUp = new THREE.Vector3();
     
-    // Apply offset to hit point
+    // Project cameraRight onto surface plane
+    surfaceRight.copy(cameraRight).sub(normal.clone().multiplyScalar(cameraRight.dot(normal)));
+    surfaceRight.normalize();
+    
+    // Project cameraUp onto surface plane
+    surfaceUp.copy(cameraUp).sub(normal.clone().multiplyScalar(cameraUp.dot(normal)));
+    surfaceUp.normalize();
+    
+    // Calculate offset vector along surface plane
+    const offsetVector = new THREE.Vector3();
+    offsetVector.addScaledVector(surfaceRight, offsetLeft * pixelToWorldScale);
+    offsetVector.addScaledVector(surfaceUp, offsetUp * pixelToWorldScale);
+    
+    // Apply offset to hit point (stays on surface)
     const offsetPosition = hit.point.clone().add(offsetVector);
     
     spawnSplat(offsetPosition, normal);
@@ -436,22 +450,36 @@ export function initBabyOil({ scene, camera, raycastTargets: targets }) {
 /**
  * Set whether baby oil is currently selected in the hotbar
  * @param {boolean} selected
+ * @param {boolean} skipAnimation - If true, skip pull-up/pull-down animation (for item switching)
  */
-export function setSelected(selected) {
+export function setSelected(selected, skipAnimation = false) {
   if (isSelected === selected) return;
+  
+  // If push is active, allow logical state change but don't show visuals
+  if (isPushActive()) {
+    isSelected = selected;
+    return;
+  }
 
   isSelected = selected;
 
   if (isSelected) {
     // Show the baby oil HUD (idle hand) and crosshair
-    showHeldItem(HAND_IDLE_IMAGE);
+    if (skipAnimation) {
+      switchHeldItem(HAND_IDLE_IMAGE, true); // Force instant switch
+    } else {
+      showHeldItem(HAND_IDLE_IMAGE);
+    }
     showCrosshair();
     // Reset animation state
     squeezeAnimationTimer = 0;
     isShowingSqueezeImage = false;
   } else {
     // Hide the HUD, crosshair, and stop squeezing
-    hideHeldItem();
+    // When switching items, we don't need to hide the old item - switchHeldItem handles it
+    if (!skipAnimation) {
+      hideHeldItem(false);
+    }
     hideCrosshair();
     isSqueezing = false;
     squeezeCooldown = 0;
@@ -498,6 +526,11 @@ export function setSqueezing(squeezing) {
  */
 export function update(deltaTime, isMoving) {
   if (!initialized) return;
+  
+  // HARD SAFETY GUARD: If push is active, don't update visuals
+  if (isPushActive()) {
+    return;
+  }
 
   // Update HUD animation
   if (isSelected) {

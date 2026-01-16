@@ -13,7 +13,8 @@
  *   - cleanup()
  */
 
-import { showHeldItem, hideHeldItem, updateHeldItemHud } from '../ui/heldItemHud.js';
+import { showHeldItem, hideHeldItem, updateHeldItemHud, switchHeldItem } from '../ui/heldItemHud.js';
+import { isPushActive } from '../pushInteraction.js';
 
 // ===========================================
 // CONSTANTS
@@ -22,6 +23,8 @@ import { showHeldItem, hideHeldItem, updateHeldItemHud } from '../ui/heldItemHud
 const SMOKING_IMAGE = '/smoking1.png';
 const SMOKING2_IMAGE = '/smoking2.png';
 const SMOKING2_DURATION = 1.0; // Seconds to show smoking2
+const SMOKE_SOUND_PATH = '/smoke.mp3';
+const SMOKE_SOUND_COOLDOWN = 1.0; // Seconds between sound plays
 
 // ===========================================
 // STATE
@@ -31,6 +34,7 @@ let initialized = false;
 let isSelected = false;
 let smoking2Timer = 0;
 let smoking2Element = null;
+let smokeSoundCooldown = 0;
 
 // ===========================================
 // PUBLIC API
@@ -52,18 +56,32 @@ export function initMarlboro() {
 /**
  * Set whether marlboro is currently selected in the hotbar
  * @param {boolean} selected
+ * @param {boolean} skipAnimation - If true, skip pull-up/pull-down animation (for item switching)
  */
-export function setSelected(selected) {
+export function setSelected(selected, skipAnimation = false) {
   if (isSelected === selected) return;
+  
+  // If push is active, allow logical state change but don't show visuals
+  if (isPushActive()) {
+    isSelected = selected;
+    return;
+  }
 
   isSelected = selected;
 
   if (isSelected) {
     // Show the smoking hand HUD
-    showHeldItem(SMOKING_IMAGE);
+    if (skipAnimation) {
+      switchHeldItem(SMOKING_IMAGE, true); // Force instant switch
+    } else {
+      showHeldItem(SMOKING_IMAGE);
+    }
   } else {
     // Hide the HUD
-    hideHeldItem();
+    // When switching items, we don't need to hide the old item - switchHeldItem handles it
+    if (!skipAnimation) {
+      hideHeldItem(false);
+    }
   }
 }
 
@@ -123,10 +141,34 @@ function hideSmoking2() {
 }
 
 /**
+ * Play the smoke sound effect
+ */
+function playSmokeSound() {
+  // Check cooldown
+  if (smokeSoundCooldown > 0) {
+    return; // Still on cooldown
+  }
+  
+  // Create and play sound
+  const sound = new Audio(SMOKE_SOUND_PATH);
+  sound.volume = 0.7;
+  sound.play().catch(err => {
+    // Ignore autoplay errors
+    console.warn('Could not play smoke sound:', err);
+  });
+  
+  // Set cooldown
+  smokeSoundCooldown = SMOKE_SOUND_COOLDOWN;
+}
+
+/**
  * Handle click - hide hand and show smoking2 for 1 second
  */
 export function handleClick() {
   if (!isSelected || !initialized) return;
+  
+  // Play smoke sound (with cooldown)
+  playSmokeSound();
   
   // Hide the held item HUD
   hideHeldItem();
@@ -145,6 +187,26 @@ export function handleClick() {
  */
 export function update(deltaTime, isMoving) {
   if (!initialized) return;
+  
+  // HARD SAFETY GUARD: If push is active, don't update visuals
+  if (isPushActive()) {
+    // Still update sound cooldown (non-visual)
+    if (smokeSoundCooldown > 0) {
+      smokeSoundCooldown -= deltaTime;
+      if (smokeSoundCooldown < 0) {
+        smokeSoundCooldown = 0;
+      }
+    }
+    return;
+  }
+
+  // Update sound cooldown timer
+  if (smokeSoundCooldown > 0) {
+    smokeSoundCooldown -= deltaTime;
+    if (smokeSoundCooldown < 0) {
+      smokeSoundCooldown = 0;
+    }
+  }
 
   // Handle smoking2 timer
   if (smoking2Timer > 0) {
@@ -185,4 +247,5 @@ export function cleanup() {
   initialized = false;
   isSelected = false;
   smoking2Timer = 0;
+  smokeSoundCooldown = 0;
 }
