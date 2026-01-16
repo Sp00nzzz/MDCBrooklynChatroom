@@ -1,0 +1,106 @@
+/* ===========================================
+   HOTBAR UI STYLES
+   A fixed overlay at the bottom of the screen
+   with 5 selectable slots for items
+   =========================================== */
+
+#hotbar-container {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 500;
+  pointer-events: none; /* Don't block game input */
+  
+  /* Container styling */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  
+  /* No background - transparent */
+  background: transparent;
+  padding: 6px 10px;
+}
+
+/* Individual slot box */
+.hotbar-slot {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  
+  /* Slot background */
+  background: rgba(40, 40, 40, 0.8);
+  border: 2px solid rgba(100, 100, 100, 0.6);
+  border-radius: 2px;
+  
+  /* Layout for icon + number */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  /* Smooth transition for selection highlight */
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+/* Selected slot highlight - clean white outline */
+.hotbar-slot.selected {
+  border-color: rgba(255, 255, 255, 0.95);
+  background: rgba(50, 50, 50, 0.85);
+}
+
+/* Slot number indicator (top-left corner) */
+.hotbar-slot-number {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  font-family: 'Arial', sans-serif;
+  font-size: 11px;
+  font-weight: bold;
+  color: rgba(200, 200, 200, 0.7);
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Selected slot number is brighter */
+.hotbar-slot.selected .hotbar-slot-number {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+/* Item icon inside slot */
+.hotbar-slot-icon {
+  width: 42px;
+  height: 42px;
+  object-fit: contain; /* Preserve aspect ratio, fit inside */
+  pointer-events: none;
+  user-select: none;
+  
+  /* Slight drop shadow for visibility */
+  filter: drop-shadow(1px 1px 2px rgba(0, 0, 0, 0.5));
+}
+
+/* Empty slot placeholder (optional visual) */
+.hotbar-slot.empty::after {
+  content: '';
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border: 1px dashed rgba(80, 80, 80, 0.4);
+  border-radius: 1px;
+}
+
+/* Hide placeholder when slot has an item */
+.hotbar-slot:not(.empty)::after {
+  display: none;
+}
+
+/* Hover effect (subtle, since pointer-events is none on container) */
+/* This would apply if we enable pointer-events in the future */
+.hotbar-slot:hover {
+  border-color: rgba(150, 150, 150, 0.7);
+}
+
+.hotbar-slot.selected:hover {
+  border-color: rgba(255, 255, 255, 1);
+}

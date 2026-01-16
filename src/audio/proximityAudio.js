@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { getMasterVolume } from '../ui/settings.js';
 
 /**
  * Proximity-based audio system for NPCs
@@ -172,6 +173,9 @@ export function updateDiddyAudio(deltaTime, playerPosition) {
     targetVolume = Math.max(0, Math.min(1, t));
   }
 
+  // Apply master volume multiplier
+  targetVolume *= getMasterVolume();
+  
   // Smooth volume ramping to prevent popping
   const currentVolume = diddyAudio.getVolume();
   const smoothedVolume = currentVolume + (targetVolume - currentVolume) * VOLUME_SMOOTH_FACTOR;
@@ -220,6 +224,9 @@ export function updateKoolAidAudio(deltaTime, playerPosition) {
     targetVolume = Math.max(0, Math.min(1, t));
   }
 
+  // Apply master volume multiplier
+  targetVolume *= getMasterVolume();
+  
   // Smooth volume ramping to prevent popping
   const currentVolume = koolAidAudio.getVolume();
   const smoothedVolume = currentVolume + (targetVolume - currentVolume) * VOLUME_SMOOTH_FACTOR;

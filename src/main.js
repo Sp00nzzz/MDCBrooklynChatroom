@@ -29,11 +29,57 @@ import {
   initKoolAidAudio,
   updateKoolAidAudio
 } from './audio/proximityAudio.js';
+// Hotbar UI - item selection slots at bottom of screen
+import { 
+  initHotbar, 
+  setSelectedSlot, 
+  getSelectedSlot,
+  getSelectedItemType,
+  setSlotItem
+} from './ui/hotbar.js';
+// Baby Oil item - squirts white splats on surfaces
+import {
+  initBabyOil,
+  setSelected as setBabyOilSelected,
+  setSqueezing as setBabyOilSqueezing,
+  update as updateBabyOil,
+  addRaycastTargets
+} from './items/babyoilItem.js';
+// Marlboro item - shows smoking hand HUD
+import {
+  initMarlboro,
+  setSelected as setMarlboroSelected,
+  update as updateMarlboro,
+  handleClick as handleMarlboroClick
+} from './items/marlboroItem.js';
+// Oil Squirt VFX - visual particle effect for baby oil
+import {
+  initOilSquirtVfx,
+  update as updateOilSquirtVfx,
+  updateNozzlePosition
+} from './vfx/oilSquirtVfx.js';
+// Smoke VFX - cigarette smoke puffs
+import {
+  initSmokeVfx,
+  spawnSmokePuff,
+  updateSmokeVfx
+} from './vfx/smokeVfx.js';
+// Low-poly wooden table with baby oil images
+import { createTable, updateTablePickup, createTableCollider, checkTablePickup } from './table.js';
+// Settings UI - top right settings panel with master volume control
+import {
+  initSettings,
+  showSettings,
+  getMasterVolume,
+  onVolumeChange
+} from './ui/settings.js';
 
 // Game state
 let gameStarted = false;
 let scene, camera, renderer, player, npcs, npcMap, clock, gameStartTime, chatUI, nextMessageTime;
 let backgroundMusic = null;
+// Track player position for movement detection (baby oil HUD bob)
+let lastPlayerPosition = new THREE.Vector3();
 
 // Initialize game function - called when start screen is clicked
 function initGame() {
@@ -89,6 +135,30 @@ function initGame() {
   // Create prison
   const { prisonGroup, colliders, npcColliders } = createPrison();
   scene.add(prisonGroup);
+
+  // Create wooden table with baby oil images
+  // Placed in the walkway area at X = 29, Z = -0.93, rotated 90 degrees
+  const tablePosition = new THREE.Vector3(29, 0, -0.93);
+  const table = createTable(tablePosition, '/babyoil.png', 'babyoil');
+  table.rotation.y = Math.PI / 2; // Rotate 90 degrees around Y axis
+  scene.add(table);
+
+  // Add table collision - single bounding box covering entire table volume
+  // isRotated90 = true because table is rotated 90 degrees on Y axis (swaps width/depth)
+  const tableCollider = createTableCollider(tablePosition, true);
+  colliders.push(tableCollider);
+
+  // Create second wooden table with cigarettes image
+  // Placed at X = -6.5, Y = 0, Z = -6.5, rotated 180 degrees
+  const table2Position = new THREE.Vector3(-6.5, 0, -6.5);
+  const table2 = createTable(table2Position, '/icon/cigs.png', 'marlboro');
+  table2.rotation.y = Math.PI; // Rotate 180 degrees around Y axis
+  scene.add(table2);
+
+  // Add second table collision - single bounding box covering entire table volume
+  // isRotated90 = false because table is rotated 180 degrees on Y axis (back to original orientation)
+  const table2Collider = createTableCollider(table2Position, false);
+  colliders.push(table2Collider);
 
   // Create player
   player = createPlayer(camera, renderer.domElement, colliders);
@@ -172,6 +242,46 @@ function initGame() {
   // This sets up the render-to-texture pipeline for the live preview
   initCameraView(renderer, scene, camera);
 
+  // Initialize hotbar UI (5 slots at bottom of screen)
+  // Slot 1 contains the Camera item by default
+  initHotbar();
+  
+  // Initialize settings UI (top right settings panel)
+  initSettings();
+  showSettings();
+  
+  // Initialize Baby Oil item system
+  // Collect raycast targets: floor, walls, ceiling, table from prisonGroup
+  const raycastTargets = [];
+  prisonGroup.traverse((child) => {
+    if (child.isMesh) {
+      raycastTargets.push(child);
+    }
+  });
+  // Also add the table meshes
+  table.traverse((child) => {
+    if (child.isMesh) {
+      raycastTargets.push(child);
+    }
+  });
+  // Also add the second table meshes
+  table2.traverse((child) => {
+    if (child.isMesh) {
+      raycastTargets.push(child);
+    }
+  });
+  
+  initBabyOil({ scene, camera, raycastTargets });
+  
+  // Initialize Marlboro item system
+  initMarlboro();
+  
+  // Initialize Oil Squirt VFX system
+  initOilSquirtVfx();
+  
+  // Initialize Smoke VFX system
+  initSmokeVfx(scene);
+
   // Animation loop
   function animate() {
   requestAnimationFrame(animate);
@@ -217,11 +327,40 @@ function initGame() {
   updateDiddyAudio(deltaTime, camera.position);
   updateKoolAidAudio(deltaTime, camera.position);
   
+  // Update floating baby oil pickup animation (bobbing)
+  updateTablePickup(deltaTime);
+  
+  // Check if player touched any table to pick up an item
+  const pickedUpItemType = checkTablePickup(camera.position, scene);
+  if (pickedUpItemType === 'babyoil') {
+    // Baby oil was just picked up - add it to hotbar slot 2
+    setSlotItem(2, 'babyoil', '/babyoil.png');
+  } else if (pickedUpItemType === 'marlboro') {
+    // Marlboro was just picked up - add it to hotbar slot 3
+    setSlotItem(3, 'marlboro', '/icon/cigs.png');
+  }
+  
   // Update camera view preview (only renders when enabled for performance)
   // This call is cheap when disabled - it returns immediately
   if (isCameraViewEnabled()) {
     updateCameraView();
   }
+  
+  // Update baby oil item (splat spawning and HUD animation)
+  // Detect movement by comparing camera position
+  const currentPos = camera.position;
+  const isPlayerMoving = currentPos.distanceToSquared(lastPlayerPosition) > 0.0001;
+  lastPlayerPosition.copy(currentPos);
+  updateBabyOil(deltaTime, isPlayerMoving);
+  
+  // Update marlboro item (HUD animation)
+  updateMarlboro(deltaTime, isPlayerMoving);
+  
+  // Update oil squirt VFX particles
+  updateOilSquirtVfx(deltaTime);
+  
+  // Update smoke VFX particles
+  updateSmokeVfx(deltaTime);
   
     // Render main scene to screen
     renderer.render(scene, camera);
@@ -232,20 +371,14 @@ function initGame() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
+    // Update VFX nozzle position
+    updateNozzlePosition();
   });
 
   // Handle ESC key to unlock pointer
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && player.controls.isLocked) {
       player.controls.unlock();
-    }
-  });
-
-  // Handle E key to toggle camera view (handheld camcorder UI)
-  // This does NOT interfere with pointer lock - camera is visual only
-  document.addEventListener('keydown', (event) => {
-    if (event.code === 'KeyE') {
-      toggleCameraView();
     }
   });
 
@@ -256,6 +389,88 @@ function initGame() {
       if (coordIndicator) {
         coordIndicator.style.display = coordIndicator.style.display === 'none' ? 'block' : 'none';
       }
+    }
+  });
+
+  // Handle 1-5 keys for hotbar slot selection
+  // Slot 1 = Camera: brings up camera when selected, puts it down when deselected
+  // Slot 2 = Baby Oil (when picked up): shows HUD and enables squeezing
+  // This does NOT interfere with pointer lock or mouse look
+  document.addEventListener('keydown', (event) => {
+    // Check for digit keys 1-5 (both main keyboard and numpad)
+    const key = event.key;
+    if (key >= '1' && key <= '5') {
+      const slotIndex = parseInt(key, 10);
+      const previousSlot = getSelectedSlot();
+      const previousItemType = getSelectedItemType();
+      const isNowSelected = setSelectedSlot(slotIndex);
+      const newItemType = getSelectedItemType();
+      
+      // Handle camera for slot 1
+      if (slotIndex === 1) {
+        // Pressing 1: toggle camera based on selection state
+        if (isNowSelected && !isCameraViewEnabled()) {
+          toggleCameraView(); // Bring camera up
+        } else if (!isNowSelected && isCameraViewEnabled()) {
+          toggleCameraView(); // Put camera down
+        }
+      } else if (previousSlot === 1 && isCameraViewEnabled()) {
+        // Switching away from slot 1: put camera down
+        toggleCameraView();
+      }
+      
+      // Handle baby oil selection state
+      // Deselect baby oil if we were using it
+      if (previousItemType === 'babyoil' && newItemType !== 'babyoil') {
+        setBabyOilSelected(false);
+      }
+      // Select baby oil if the new slot contains it
+      if (newItemType === 'babyoil') {
+        setBabyOilSelected(true);
+      }
+      
+      // Handle marlboro selection state
+      // Deselect marlboro if we were using it
+      if (previousItemType === 'marlboro' && newItemType !== 'marlboro') {
+        setMarlboroSelected(false);
+      }
+      // Select marlboro if the new slot contains it
+      if (newItemType === 'marlboro') {
+        setMarlboroSelected(true);
+      }
+    }
+  });
+  
+  // Handle mouse input for baby oil squeezing and marlboro clicking
+  // Only active when items are selected and pointer is locked
+  document.addEventListener('mousedown', (event) => {
+    if (event.button === 0 && player.controls.isLocked) {
+      // Left mouse button
+      if (getSelectedItemType() === 'babyoil') {
+        setBabyOilSqueezing(true);
+      } else if (getSelectedItemType() === 'marlboro') {
+        handleMarlboroClick();
+        
+        // Spawn smoke puff at camera position (in front and slightly down)
+        // Calculate world position in front of camera
+        const forward = new THREE.Vector3();
+        camera.getWorldDirection(forward);
+        const up = camera.up.clone();
+        
+        // Position: 0.5 units forward, 0.3 units down from camera
+        const smokeOffset = forward.multiplyScalar(0.5)
+          .add(up.multiplyScalar(-0.3));
+        const smokePos = camera.position.clone().add(smokeOffset);
+        
+        spawnSmokePuff(smokePos);
+      }
+    }
+  });
+  
+  document.addEventListener('mouseup', (event) => {
+    if (event.button === 0) {
+      // Left mouse button released
+      setBabyOilSqueezing(false);
     }
   });
 
@@ -339,7 +554,7 @@ function setupStartScreen() {
         });
         
         // Fade in the music over 3 seconds
-        const targetVolume = 0.5; // Target volume at 50%
+        const baseVolume = 0.5; // Base volume at 50%
         const fadeDuration = 3000; // 3 seconds
         const fadeStartTime = performance.now();
         
@@ -349,7 +564,8 @@ function setupStartScreen() {
           
           // Ease-in for smooth fade
           const easedProgress = easeInQuad(progress);
-          backgroundMusic.volume = targetVolume * easedProgress;
+          // Apply master volume multiplier
+          backgroundMusic.volume = baseVolume * easedProgress * getMasterVolume();
           
           if (progress < 1) {
             requestAnimationFrame(fadeInMusic);
@@ -358,6 +574,13 @@ function setupStartScreen() {
         
         // Start fade-in animation
         fadeInMusic();
+        
+        // Register callback to update background music when master volume changes
+        onVolumeChange((newVolume) => {
+          if (backgroundMusic) {
+            backgroundMusic.volume = baseVolume * newVolume;
+          }
+        });
         
         // Play the cinematic eye opening transition to reveal the scene
         // Effects: eyelids opening, blur clearing, ghosting fading, vignette fading
