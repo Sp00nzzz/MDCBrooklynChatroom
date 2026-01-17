@@ -2,7 +2,6 @@
 
 import * as THREE from 'three';
 import { getLastPushedNPC } from '../pushInteraction.js';
-import { spawnWorldConfetti } from '../vfx/confettiVfx.js';
 
 export const anger = {
   value: 0,
@@ -52,6 +51,7 @@ let setCameraLocked = null;
 let opponentNPC = null;
 let opponentStartPosition = null;
 let opponentStartRotation = null;
+let onWinCallback = null;
 
 // Fight audio
 let fightAudio = null;
@@ -1693,33 +1693,15 @@ function endFight(result) {
   const isWin = result === 'win' || fight.enemy.hp <= 0 || fight.hits > 8;
   
   if (isWin) {
+    console.log('[WIN] triggered');
     const winAudio = new Audio('/yay.mp3');
     winAudio.volume = 1.0;
     winAudio.play().catch(err => {
       console.warn('Failed to play win audio:', err);
     });
 
-    // Spawn 3D world confetti celebration effect
-    if (camera) {
-      // Calculate spawn position: in front of camera, slightly above
-      const forward = new THREE.Vector3();
-      camera.getWorldDirection(forward);
-      const up = camera.up.clone();
-      
-      // Spawn center: 1.5 units forward, 0.6 units up from camera
-      const spawnOrigin = camera.position.clone()
-        .add(forward.multiplyScalar(1.5))
-        .add(up.multiplyScalar(0.6));
-      
-      console.log('Spawning confetti at win! Camera pos:', camera.position, 'Spawn origin:', spawnOrigin);
-      
-      spawnWorldConfetti({
-        origin: spawnOrigin,
-        count: 200,
-        duration: 2.5
-      });
-    } else {
-      console.warn('Cannot spawn confetti: camera is null');
+    if (typeof onWinCallback === 'function') {
+      onWinCallback();
     }
   }
 
@@ -1841,6 +1823,7 @@ export function initAngerSystem(options = {}) {
   setMovementLocked = options.setMovementLocked || null;
   camera = options.camera || null;
   setCameraLocked = options.setCameraLocked || null;
+  onWinCallback = options.onWin || null;
 
   createAngerUI();
   createFightUI();

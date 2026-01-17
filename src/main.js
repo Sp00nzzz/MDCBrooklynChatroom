@@ -73,10 +73,7 @@ import {
   updateSmokeVfx
 } from './vfx/smokeVfx.js';
 // Confetti VFX - 3D world-space celebration effect
-import {
-  initConfettiVfx,
-  updateWorldConfetti
-} from './vfx/confettiVfx.js';
+import { ConfettiSystem } from './vfx/confettiVfx.js';
 // Push Interaction - NPC push system with hand overlay
 import {
   initPushInteraction,
@@ -98,6 +95,8 @@ import {
 let gameStarted = false;
 let scene, camera, renderer, player, npcs, npcMap, clock, gameStartTime, chatUI, nextMessageTime;
 let backgroundMusic = null;
+// ConfettiSystem is owned by the main loop; always update the current reference.
+let confettiSystem = null;
 // Track player position for movement detection (baby oil HUD bob)
 let lastPlayerPosition = new THREE.Vector3();
 
@@ -210,6 +209,30 @@ function initGame() {
   
   scene.add(poster);
 
+  // Create second poster using poster2.png at position (0, 2.5, -6.98)
+  const poster2Texture = textureLoader.load('/poster2.png');
+  poster2Texture.colorSpace = THREE.SRGBColorSpace;
+  
+  const poster2Material = new THREE.MeshStandardMaterial({
+    map: poster2Texture,
+    emissiveMap: poster2Texture,
+    emissive: new THREE.Color(0xffffff),
+    emissiveIntensity: 0.8,
+    transparent: false
+  });
+  
+  // Create a plane for the second poster (same dimensions)
+  const poster2Geometry = new THREE.PlaneGeometry(posterWidth, posterHeight);
+  const poster2 = new THREE.Mesh(poster2Geometry, poster2Material);
+  
+  // Position at (3, 2.5, -6.98)
+  poster2.position.set(3, 2.5, -6.98);
+  
+  // Rotate to face the walkway (toward positive Z)
+  poster2.rotation.y = 0;
+  
+  scene.add(poster2);
+
   // Create player
   player = createPlayer(camera, renderer.domElement, colliders);
 
@@ -252,13 +275,35 @@ function initGame() {
     scene.add(npc.getSprite());
   });
 
+  const confettiForward = new THREE.Vector3();
+  const confettiUp = new THREE.Vector3();
+  const confettiOrigin = new THREE.Vector3();
+
+  const spawnWinConfetti = () => {
+    if (!scene || !camera) return;
+    if (confettiSystem) {
+      confettiSystem.destroy();
+      confettiSystem = null;
+    }
+    confettiSystem = new ConfettiSystem(scene, camera);
+
+    camera.getWorldDirection(confettiForward);
+    confettiUp.copy(camera.up).normalize();
+    confettiOrigin.copy(camera.position)
+      .add(confettiForward.multiplyScalar(1.5))
+      .add(confettiUp.multiplyScalar(0.6));
+
+    confettiSystem.spawn(confettiOrigin, { count: 200, lifetimeAfterLand: 5 });
+  };
+
   // Initialize anger system UI and fight logic
   initAngerSystem({
     npcs,
     getPlayerPosition: () => camera.position,
     setMovementLocked: (locked) => player.setMovementLocked(locked),
     camera: camera,
-    setCameraLocked: (locked) => player.setCameraLocked(locked)
+    setCameraLocked: (locked) => player.setCameraLocked(locked),
+    onWin: spawnWinConfetti
   });
 
   // Find and initialize Diddy NPC audio
@@ -356,8 +401,9 @@ function initGame() {
       raycastTargets.push(child);
     }
   });
-  // Add poster to raycast targets so splats can spawn on it
+  // Add posters to raycast targets so splats can spawn on them
   raycastTargets.push(poster);
+  raycastTargets.push(poster2);
   
   initBabyOil({ scene, camera, raycastTargets });
   
@@ -370,120 +416,117 @@ function initGame() {
   // Initialize Smoke VFX system
   initSmokeVfx(scene);
 
-  // Initialize Confetti VFX system
-  initConfettiVfx(scene);
-
   // Animation loop
   function animate() {
-  requestAnimationFrame(animate);
-  
-  let deltaTime = clock.getDelta();
-  
-  // Clamp deltaTime to prevent huge jumps when tab regains focus after alt-tab
-  // This prevents NPCs from moving huge distances or disappearing
-  const maxDeltaTime = 0.1; // Maximum 100ms per frame (10 FPS minimum)
-  if (deltaTime > maxDeltaTime) {
-    deltaTime = maxDeltaTime;
-  }
-  
-  // Check if fight is active - skip most updates during fight
-  const fightActive = isFightActive();
-  
-  if (!fightActive) {
-    // Normal gameplay updates
-    // Update player
-    player.update(deltaTime);
-    
-    // Update coordinate indicator
-    const coordIndicator = document.getElementById('coordinate-indicator');
-    if (coordIndicator) {
-      const pos = camera.position;
-      coordIndicator.textContent = `X: ${pos.x.toFixed(2)} Y: ${pos.y.toFixed(2)} Z: ${pos.z.toFixed(2)}`;
+    requestAnimationFrame(animate);
+
+    let deltaTime = clock.getDelta();
+
+    // Clamp deltaTime to prevent huge jumps when tab regains focus after alt-tab
+    // This prevents NPCs from moving huge distances or disappearing
+    const maxDeltaTime = 0.1; // Maximum 100ms per frame (10 FPS minimum)
+    if (deltaTime > maxDeltaTime) {
+      deltaTime = maxDeltaTime;
     }
-    
-    // Update clock indicator
-    const clockIndicator = document.getElementById('clock-indicator');
-    if (clockIndicator) {
-      clockIndicator.textContent = formatGameTime();
+
+    // Update anger system (handles fight logic and triggers)
+    // This must run even during fight to update fight state
+    updateAnger(deltaTime);
+
+    // Check if fight is active - skip most updates during fight
+    const fightActive = isFightActive();
+
+    if (!fightActive) {
+      // Normal gameplay updates
+      // Update player
+      player.update(deltaTime);
+
+      // Update coordinate indicator
+      const coordIndicator = document.getElementById('coordinate-indicator');
+      if (coordIndicator) {
+        const pos = camera.position;
+        coordIndicator.textContent = `X: ${pos.x.toFixed(2)} Y: ${pos.y.toFixed(2)} Z: ${pos.z.toFixed(2)}`;
+      }
+
+      // Update clock indicator
+      const clockIndicator = document.getElementById('clock-indicator');
+      if (clockIndicator) {
+        clockIndicator.textContent = formatGameTime();
+      }
+
+      // Update NPCs (billboard to face camera and update dialogue bubbles)
+      npcs.forEach(npc => {
+        npc.update(
+          deltaTime,
+          camera,
+          updateBubbleBillboard,
+          updateBubbleLifetime,
+          disposeBubble,
+          scene
+        );
+      });
+
+      // Update NPC proximity audio
+      updateDiddyAudio(deltaTime, camera.position);
+      updateKoolAidAudio(deltaTime, camera.position);
+      update6ix9ineAudio(deltaTime, camera.position);
+      updateMaduroAudio(deltaTime, camera.position);
+      updateCohenAudio(deltaTime, camera.position);
+
+      // Update push interaction system
+      updatePushInteraction(deltaTime, camera.position);
+
+      // Update floating baby oil pickup animation (bobbing)
+      updateTablePickup(deltaTime);
+
+      // Check if player touched any table to pick up an item
+      const pickedUpItemType = checkTablePickup(camera.position, scene);
+      if (pickedUpItemType === 'babyoil') {
+        // Baby oil was just picked up - add it to hotbar slot 2
+        setSlotItem(2, 'babyoil', '/babyoil.png');
+      } else if (pickedUpItemType === 'marlboro') {
+        // Marlboro was just picked up - add it to hotbar slot 3
+        setSlotItem(3, 'marlboro', '/icon/cigs.png');
+      }
+
+      // Update camera view preview (only renders when enabled for performance)
+      // This call is cheap when disabled - it returns immediately
+      if (isCameraViewEnabled()) {
+        updateCameraView();
+      }
+
+      // Update baby oil item (splat spawning and HUD animation)
+      // Detect movement by comparing camera position
+      const currentPos = camera.position;
+      const isPlayerMoving = currentPos.distanceToSquared(lastPlayerPosition) > 0.0001;
+      lastPlayerPosition.copy(currentPos);
+      updateBabyOil(deltaTime, isPlayerMoving);
+
+      // Update marlboro item (HUD animation)
+      updateMarlboro(deltaTime, isPlayerMoving);
+
+      // Update oil squirt VFX particles
+      updateOilSquirtVfx(deltaTime);
+
+      // Update smoke VFX particles
+      updateSmokeVfx(deltaTime);
+
+    } else {
+      // During fight: render scene with opponent visible
+      // The overlay covers UI, but opponent should be visible
+      // Set dark background to match fight aesthetic
+      renderer.setClearColor(0x0a0a0a, 1);
     }
-    
-    // Update NPCs (billboard to face camera and update dialogue bubbles)
-    npcs.forEach(npc => {
-      npc.update(
-        deltaTime, 
-        camera, 
-        updateBubbleBillboard, 
-        updateBubbleLifetime, 
-        disposeBubble, 
-        scene
-      );
-    });
-    
-    // Update NPC proximity audio
-    updateDiddyAudio(deltaTime, camera.position);
-    updateKoolAidAudio(deltaTime, camera.position);
-    update6ix9ineAudio(deltaTime, camera.position);
-    updateMaduroAudio(deltaTime, camera.position);
-    updateCohenAudio(deltaTime, camera.position);
-    
-    // Update push interaction system
-    updatePushInteraction(deltaTime, camera.position);
-    
-    // Update floating baby oil pickup animation (bobbing)
-    updateTablePickup(deltaTime);
-    
-    // Check if player touched any table to pick up an item
-    const pickedUpItemType = checkTablePickup(camera.position, scene);
-    if (pickedUpItemType === 'babyoil') {
-      // Baby oil was just picked up - add it to hotbar slot 2
-      setSlotItem(2, 'babyoil', '/babyoil.png');
-    } else if (pickedUpItemType === 'marlboro') {
-      // Marlboro was just picked up - add it to hotbar slot 3
-      setSlotItem(3, 'marlboro', '/icon/cigs.png');
+
+    if (confettiSystem) {
+      const alive = confettiSystem.update(deltaTime);
+      if (!alive) {
+        confettiSystem = null;
+      }
     }
-    
-    // Update camera view preview (only renders when enabled for performance)
-    // This call is cheap when disabled - it returns immediately
-    if (isCameraViewEnabled()) {
-      updateCameraView();
-    }
-    
-    // Update baby oil item (splat spawning and HUD animation)
-    // Detect movement by comparing camera position
-    const currentPos = camera.position;
-    const isPlayerMoving = currentPos.distanceToSquared(lastPlayerPosition) > 0.0001;
-    lastPlayerPosition.copy(currentPos);
-    updateBabyOil(deltaTime, isPlayerMoving);
-    
-    // Update marlboro item (HUD animation)
-    updateMarlboro(deltaTime, isPlayerMoving);
-    
-    // Update oil squirt VFX particles
-    updateOilSquirtVfx(deltaTime);
-    
-    // Update smoke VFX particles
-    updateSmokeVfx(deltaTime);
-    
-    // Update confetti VFX particles
-    updateWorldConfetti(deltaTime);
-    
+
     // Render main scene to screen
     renderer.render(scene, camera);
-  } else {
-    // During fight: render scene with opponent visible
-    // The overlay covers UI, but opponent should be visible
-    // Set dark background to match fight aesthetic
-    renderer.setClearColor(0x0a0a0a, 1);
-    
-    // Update confetti even during fight (in case win happens)
-    updateWorldConfetti(deltaTime);
-    
-    renderer.render(scene, camera);
-  }
-
-  // Update anger system (handles fight logic and triggers)
-  // This must run even during fight to update fight state
-  updateAnger(deltaTime);
   }
 
   // Handle window resize
