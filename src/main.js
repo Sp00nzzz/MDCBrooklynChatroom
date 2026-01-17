@@ -247,7 +247,7 @@ function initGame() {
     new NPCSprite(new THREE.Vector3(-10, 1.5, -2), '/GM.png', npcColliders, 'Ghislaine Maxwell'),
     new NPCSprite(new THREE.Vector3(15, 1.5, -2), '/ElChapo.png', npcColliders, 'El Chapo Guzman'),
     new NPCSprite(new THREE.Vector3(-20, 1.5, 2), '/Rkelly.png', npcColliders, 'R. Kelly'),
-    new NPCSprite(new THREE.Vector3(20, 1.5, 1), '/AndyCohen.png', npcColliders, 'Andy Cohen'),
+    new NPCSprite(new THREE.Vector3(20, 1.5, 1), '/AndyCohen.png', npcColliders, 'Michael Cohen'),
     new NPCSprite(new THREE.Vector3(-25, 1.5, -1), '/6ix9ine.png', npcColliders, '6ix9ine'),
     new NPCSprite(new THREE.Vector3(25, 1.5, 0), '/koolaid.png', npcColliders, 'Kool-Aid Man'),
     new NPCSprite(new THREE.Vector3(0, 1.5, 3), '/Martin.png', npcColliders, 'Martin'),

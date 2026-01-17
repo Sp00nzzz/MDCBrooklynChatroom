@@ -90,7 +90,7 @@ export class NPCSprite {
     // Identify Maduro NPC by texture path or character name
     this.isMaduro = texturePathStr.includes('maduro') || charNameStr.includes('nicolas maduro');
     
-    // Identify Cohen NPC by texture path or character name (matches Andy Cohen or Michael Cohen)
+    // Identify Cohen NPC by texture path or character name (matches Michael Cohen)
     this.isCohen = texturePathStr.includes('cohen') || charNameStr.includes('cohen');
 
     // Movement/wander parameters
@@ -113,6 +113,10 @@ export class NPCSprite {
     this.pushCooldown = 0; // Time remaining until this NPC can be pushed again
     this.maxSpeed = 14.0; // Maximum velocity magnitude (increased for stronger pushes)
     this.damping = 0.80; // Velocity damping per second (reduced for longer travel distance, applied as 0.80^(dt*60))
+    
+    // Freeze/stun state after being pushed
+    this.frozen = false; // Whether NPC is frozen (can't move)
+    this.freezeTimeRemaining = 0; // Time remaining in freeze state (seconds)
 
     // Create sprite - use provided texture, image path, or procedural texture
     let texture = null;
@@ -187,6 +191,48 @@ export class NPCSprite {
    * @param {number} deltaTime
    */
   moveWithCollision(deltaTime) {
+    // If frozen, only apply push velocity (from being pushed), no wander movement
+    if (this.frozen) {
+      // Still apply push velocity so NPC continues being pushed away
+      if (this.velocity.lengthSq() > 0.001) {
+        const velocityStep = this.velocity.clone().multiplyScalar(deltaTime);
+        
+        const targetX = this.position.x + velocityStep.x;
+        const targetZ = this.position.z + velocityStep.z;
+        
+        if (!this.hasCollisionAt(targetX, this.position.z)) {
+          this.position.x = targetX;
+        } else {
+          this.velocity.x *= -0.5;
+        }
+        
+        if (!this.hasCollisionAt(this.position.x, targetZ)) {
+          this.position.z = targetZ;
+        } else {
+          this.velocity.z *= -0.5;
+        }
+        
+        // Apply damping to velocity
+        const dampingFactor = Math.pow(this.damping, deltaTime * 60);
+        this.velocity.multiplyScalar(dampingFactor);
+        
+        if (this.velocity.length() > this.maxSpeed) {
+          this.velocity.normalize().multiplyScalar(this.maxSpeed);
+        }
+        
+        if (this.velocity.lengthSq() < 0.001) {
+          this.velocity.set(0, 0, 0);
+        }
+      }
+      
+      // Keep NPC locked to floor height
+      this.position.y = this.baseY;
+      
+      // Update sprite world position
+      this.sprite.position.copy(this.position);
+      return; // Skip wander movement while frozen
+    }
+    
     // Apply velocity from push interactions first
     if (this.velocity.lengthSq() > 0.001) {
       // Apply velocity movement
@@ -399,6 +445,10 @@ export class NPCSprite {
     if (this.velocity.length() > this.maxSpeed) {
       this.velocity.normalize().multiplyScalar(this.maxSpeed);
     }
+    
+    // Freeze NPC for 0.5 seconds after being pushed
+    this.frozen = true;
+    this.freezeTimeRemaining = 0.5; // 0.5 seconds freeze
   }
 
   /**
@@ -418,7 +468,16 @@ export class NPCSprite {
         this.pushCooldown = 0;
       }
     }
-
+    
+    // Update freeze state
+    if (this.frozen) {
+      this.freezeTimeRemaining -= deltaTime;
+      if (this.freezeTimeRemaining <= 0) {
+        this.frozen = false;
+        this.freezeTimeRemaining = 0;
+      }
+    }
+    
     this.updateWander(deltaTime);
     this.moveWithCollision(deltaTime);
     this.updateBillboard(camera);

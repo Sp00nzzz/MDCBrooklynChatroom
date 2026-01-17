@@ -78,31 +78,31 @@ export const CHARACTERS = {
     color: '#f38181', // Coral
     style: 'strategic',
     phrases: [
-      'These walls are just temporary obstacles in my master plan.',
-      'I\'ve escaped worse prisons than this American joke.',
-      'The guards have weaknesses, and I\'m cataloging every one.',
-      'Patience is my greatest weapon in this concrete tomb.',
-      'Every tunnel needs a starting point, and every plan needs time.',
-      'The real battle is fought in the shadows, not the spotlight.',
-      'I\'ve built empires from nothing; this cell is just another challenge.',
-      'Freedom isn\'t given, it\'s taken through careful strategy.'
+      'tell the gringos I said whats good, we can collab on the tunnel mixtape, volume 2 got flamethrowers',
+      'who you want me to cook next, carbon? hit me up',
+      'yo slide me a burner Nokia I got a whole corrido about these 23-hour lockdowns',
+      'they canceled my shit but my product still movin faster than ur moms onlyfan',
+      'who tf is this walter white guy?',
+      'miss my old crib dawg',
+      'homberos chill out brochacho'
+
+
     ]
   },
   'Ghislaine Maxwell': {
     color: '#aa96da', // Lavender
     style: 'sarcastic',
     phrases: [
-      'Oh darling, prison is just so... quaint, isn\'t it?',
-      'These accommodations are quite beneath my usual standards.',
-      'How charming that the government thinks this will break me.',
-      'Prison orange really isn\'t my color, but then again, neither is justice.',
-      'I suppose this is what passes for luxury in the federal system.',
-      'The food here is simply divine... if you enjoy cardboard.',
-      'My cellmate snores like a chainsaw - how utterly pedestrian.',
-      'I miss my yacht, but I suppose this is just another island getaway.'
+      'still got the best connections trust',
+      'jeffrey always said i throw legendary parties',
+      "youre cute thinking you can cancel royalty",
+      "dont @ me unless youre on the manifest ",
+      "wdym they released the files?",
+      'wait lowkey i might be cooked',
+
     ]
   },
-  'Andy Cohen': {
+  'Michael Cohen': {
     color: '#ff9ff3', // Pink
     style: 'dramatic',
     phrases: [
@@ -120,14 +120,13 @@ export const CHARACTERS = {
     color: '#ff4757', // Bright red
     style: 'aggressive',
     phrases: [
-      'Y\'all think this prison can hold me? Think again, bro!',
-      'I\'m still the king even in this concrete jungle!',
-      'These bars can\'t stop the hustle, they just slow it down.',
-      'I\'ve seen worse places than this, trust me.',
-      'The streets made me, prison just polished the edges.',
-      'I\'m running things in here, just like I did outside.',
-      'This ain\'t my first rodeo, and it won\'t be my last.',
-      'They locked me up, but they can\'t lock up the energy!'
+      'blicky got the stiffy',
+      'i aint no rat bitches',
+      'gotta do what u gotta do',
+      'who the fuck is this NBA youngboy?',
+      'gummo type shi',
+      'day69 is still the shit',
+      'idk why people keep thinkin im asian',
     ]
   },
   'Martin': {

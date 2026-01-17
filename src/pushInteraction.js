@@ -17,7 +17,6 @@ import { setSelected as setBabyOilSelected } from './items/babyoilItem.js';
 import { setSelected as setMarlboroSelected } from './items/marlboroItem.js';
 import { hideHeldItem, showHeldItem, switchHeldItem } from './ui/heldItemHud.js';
 import { isCameraViewEnabled, toggleCameraView } from './ui/cameraView.js';
-import { getMasterVolume } from './ui/settings.js';
 import { onNPCHitPush, isFightActive, canAddAngerFromPush } from './ui/angerSystem.js';
 
 // ===========================================
@@ -437,7 +436,7 @@ function attemptPush() {
 function playPushSound() {
   try {
     const shoveSound = new Audio('/shove.mp3');
-    shoveSound.volume = getMasterVolume(); // Respect master volume setting
+    shoveSound.volume = 1.0; // Fixed volume - not affected by master volume setting
     shoveSound.play().catch(error => {
       // Silently handle autoplay restrictions or missing file
       console.warn('Could not play push sound:', error);
