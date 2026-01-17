@@ -4,7 +4,7 @@
  */
 
 // Master volume value (0.0 to 1.0)
-let masterVolume = 1.0;
+let masterVolume = 0.3;
 
 // Callbacks to notify audio sources of volume changes
 const volumeChangeCallbacks = [];
@@ -31,8 +31,8 @@ export function initSettings() {
       <div class="settings-header">Settings</div>
       <div class="settings-row">
         <label for="volume-slider">Master Volume</label>
-        <input type="range" id="volume-slider" min="0" max="100" value="100">
-        <span id="volume-label">100%</span>
+        <input type="range" id="volume-slider" min="0" max="100" value="30">
+        <span id="volume-label">30%</span>
       </div>
     </div>
   `;

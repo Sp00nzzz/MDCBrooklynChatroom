@@ -18,6 +18,7 @@ import { setSelected as setMarlboroSelected } from './items/marlboroItem.js';
 import { hideHeldItem, showHeldItem, switchHeldItem } from './ui/heldItemHud.js';
 import { isCameraViewEnabled, toggleCameraView } from './ui/cameraView.js';
 import { getMasterVolume } from './ui/settings.js';
+import { onNPCHitPush, isFightActive, canAddAngerFromPush } from './ui/angerSystem.js';
 
 // ===========================================
 // CONFIGURATION
@@ -43,6 +44,9 @@ let eKeyWasPressed = false; // For edge detection
 
 // Cooldown tracking
 let playerPushCooldown = 0;
+
+// Track last pushed NPC
+let lastPushedNPC = null;
 
 // UI elements
 let handOverlay = null;
@@ -378,6 +382,10 @@ function attemptPush() {
   if (!playerControls || !playerControls.isLocked) {
     return;
   }
+
+  if (isFightActive()) {
+    return;
+  }
   
   // Check player cooldown
   if (playerPushCooldown > 0) {
@@ -414,6 +422,13 @@ function attemptPush() {
   
   // Play push sound effect
   playPushSound();
+
+  // Track last pushed NPC
+  lastPushedNPC = npc;
+
+  if (canAddAngerFromPush()) {
+    onNPCHitPush(npc.characterName || npc.id || 'npc');
+  }
 }
 
 /**
@@ -502,6 +517,11 @@ export function updatePushInteraction(deltaTime, playerPos) {
   eKeyWasPressed = eKeyPressed;
   
   // Update hint text visibility (only show when looking directly at NPC and pointer is locked)
+  if (isFightActive()) {
+    hintText.style.display = 'none';
+    hintText.style.opacity = '0';
+    return;
+  }
   const nearest = findNearestNPC(playerPosition, playerCamera);
   if (nearest && playerPushCooldown <= 0 && playerControls && playerControls.isLocked) {
     hintText.style.display = 'block';
@@ -518,6 +538,14 @@ export function updatePushInteraction(deltaTime, playerPos) {
  */
 export function isPushActive() {
   return isPushing;
+}
+
+/**
+ * Get the last NPC that was pushed
+ * @returns {Object|null} The last pushed NPC or null
+ */
+export function getLastPushedNPC() {
+  return lastPushedNPC;
 }
 
 /**

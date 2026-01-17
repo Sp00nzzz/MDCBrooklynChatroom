@@ -43,6 +43,8 @@ import {
   getSelectedItemType,
   setSlotItem
 } from './ui/hotbar.js';
+import './ui/anger.css';
+import { initAngerSystem, updateAnger, isFightActive } from './ui/angerSystem.js';
 // Baby Oil item - squirts white splats on surfaces
 import {
   initBabyOil,
@@ -70,6 +72,11 @@ import {
   spawnSmokePuff,
   updateSmokeVfx
 } from './vfx/smokeVfx.js';
+// Confetti VFX - 3D world-space celebration effect
+import {
+  initConfettiVfx,
+  updateWorldConfetti
+} from './vfx/confettiVfx.js';
 // Push Interaction - NPC push system with hand overlay
 import {
   initPushInteraction,
@@ -245,6 +252,15 @@ function initGame() {
     scene.add(npc.getSprite());
   });
 
+  // Initialize anger system UI and fight logic
+  initAngerSystem({
+    npcs,
+    getPlayerPosition: () => camera.position,
+    setMovementLocked: (locked) => player.setMovementLocked(locked),
+    camera: camera,
+    setCameraLocked: (locked) => player.setCameraLocked(locked)
+  });
+
   // Find and initialize Diddy NPC audio
   const diddyNpc = npcs.find(npc => npc.isDiddy);
   if (diddyNpc) {
@@ -354,6 +370,9 @@ function initGame() {
   // Initialize Smoke VFX system
   initSmokeVfx(scene);
 
+  // Initialize Confetti VFX system
+  initConfettiVfx(scene);
+
   // Animation loop
   function animate() {
   requestAnimationFrame(animate);
@@ -367,81 +386,104 @@ function initGame() {
     deltaTime = maxDeltaTime;
   }
   
-  // Update player
-  player.update(deltaTime);
+  // Check if fight is active - skip most updates during fight
+  const fightActive = isFightActive();
   
-  // Update coordinate indicator
-  const coordIndicator = document.getElementById('coordinate-indicator');
-  if (coordIndicator) {
-    const pos = camera.position;
-    coordIndicator.textContent = `X: ${pos.x.toFixed(2)} Y: ${pos.y.toFixed(2)} Z: ${pos.z.toFixed(2)}`;
-  }
-  
-  // Update clock indicator
-  const clockIndicator = document.getElementById('clock-indicator');
-  if (clockIndicator) {
-    clockIndicator.textContent = formatGameTime();
-  }
-  
-  // Update NPCs (billboard to face camera and update dialogue bubbles)
-  npcs.forEach(npc => {
-    npc.update(
-      deltaTime, 
-      camera, 
-      updateBubbleBillboard, 
-      updateBubbleLifetime, 
-      disposeBubble, 
-      scene
-    );
-  });
-  
-  // Update NPC proximity audio
-  updateDiddyAudio(deltaTime, camera.position);
-  updateKoolAidAudio(deltaTime, camera.position);
-  update6ix9ineAudio(deltaTime, camera.position);
-  updateMaduroAudio(deltaTime, camera.position);
-  updateCohenAudio(deltaTime, camera.position);
-  
-  // Update push interaction system
-  updatePushInteraction(deltaTime, camera.position);
-  
-  // Update floating baby oil pickup animation (bobbing)
-  updateTablePickup(deltaTime);
-  
-  // Check if player touched any table to pick up an item
-  const pickedUpItemType = checkTablePickup(camera.position, scene);
-  if (pickedUpItemType === 'babyoil') {
-    // Baby oil was just picked up - add it to hotbar slot 2
-    setSlotItem(2, 'babyoil', '/babyoil.png');
-  } else if (pickedUpItemType === 'marlboro') {
-    // Marlboro was just picked up - add it to hotbar slot 3
-    setSlotItem(3, 'marlboro', '/icon/cigs.png');
-  }
-  
-  // Update camera view preview (only renders when enabled for performance)
-  // This call is cheap when disabled - it returns immediately
-  if (isCameraViewEnabled()) {
-    updateCameraView();
-  }
-  
-  // Update baby oil item (splat spawning and HUD animation)
-  // Detect movement by comparing camera position
-  const currentPos = camera.position;
-  const isPlayerMoving = currentPos.distanceToSquared(lastPlayerPosition) > 0.0001;
-  lastPlayerPosition.copy(currentPos);
-  updateBabyOil(deltaTime, isPlayerMoving);
-  
-  // Update marlboro item (HUD animation)
-  updateMarlboro(deltaTime, isPlayerMoving);
-  
-  // Update oil squirt VFX particles
-  updateOilSquirtVfx(deltaTime);
-  
-  // Update smoke VFX particles
-  updateSmokeVfx(deltaTime);
-  
+  if (!fightActive) {
+    // Normal gameplay updates
+    // Update player
+    player.update(deltaTime);
+    
+    // Update coordinate indicator
+    const coordIndicator = document.getElementById('coordinate-indicator');
+    if (coordIndicator) {
+      const pos = camera.position;
+      coordIndicator.textContent = `X: ${pos.x.toFixed(2)} Y: ${pos.y.toFixed(2)} Z: ${pos.z.toFixed(2)}`;
+    }
+    
+    // Update clock indicator
+    const clockIndicator = document.getElementById('clock-indicator');
+    if (clockIndicator) {
+      clockIndicator.textContent = formatGameTime();
+    }
+    
+    // Update NPCs (billboard to face camera and update dialogue bubbles)
+    npcs.forEach(npc => {
+      npc.update(
+        deltaTime, 
+        camera, 
+        updateBubbleBillboard, 
+        updateBubbleLifetime, 
+        disposeBubble, 
+        scene
+      );
+    });
+    
+    // Update NPC proximity audio
+    updateDiddyAudio(deltaTime, camera.position);
+    updateKoolAidAudio(deltaTime, camera.position);
+    update6ix9ineAudio(deltaTime, camera.position);
+    updateMaduroAudio(deltaTime, camera.position);
+    updateCohenAudio(deltaTime, camera.position);
+    
+    // Update push interaction system
+    updatePushInteraction(deltaTime, camera.position);
+    
+    // Update floating baby oil pickup animation (bobbing)
+    updateTablePickup(deltaTime);
+    
+    // Check if player touched any table to pick up an item
+    const pickedUpItemType = checkTablePickup(camera.position, scene);
+    if (pickedUpItemType === 'babyoil') {
+      // Baby oil was just picked up - add it to hotbar slot 2
+      setSlotItem(2, 'babyoil', '/babyoil.png');
+    } else if (pickedUpItemType === 'marlboro') {
+      // Marlboro was just picked up - add it to hotbar slot 3
+      setSlotItem(3, 'marlboro', '/icon/cigs.png');
+    }
+    
+    // Update camera view preview (only renders when enabled for performance)
+    // This call is cheap when disabled - it returns immediately
+    if (isCameraViewEnabled()) {
+      updateCameraView();
+    }
+    
+    // Update baby oil item (splat spawning and HUD animation)
+    // Detect movement by comparing camera position
+    const currentPos = camera.position;
+    const isPlayerMoving = currentPos.distanceToSquared(lastPlayerPosition) > 0.0001;
+    lastPlayerPosition.copy(currentPos);
+    updateBabyOil(deltaTime, isPlayerMoving);
+    
+    // Update marlboro item (HUD animation)
+    updateMarlboro(deltaTime, isPlayerMoving);
+    
+    // Update oil squirt VFX particles
+    updateOilSquirtVfx(deltaTime);
+    
+    // Update smoke VFX particles
+    updateSmokeVfx(deltaTime);
+    
+    // Update confetti VFX particles
+    updateWorldConfetti(deltaTime);
+    
     // Render main scene to screen
     renderer.render(scene, camera);
+  } else {
+    // During fight: render scene with opponent visible
+    // The overlay covers UI, but opponent should be visible
+    // Set dark background to match fight aesthetic
+    renderer.setClearColor(0x0a0a0a, 1);
+    
+    // Update confetti even during fight (in case win happens)
+    updateWorldConfetti(deltaTime);
+    
+    renderer.render(scene, camera);
+  }
+
+  // Update anger system (handles fight logic and triggers)
+  // This must run even during fight to update fight state
+  updateAnger(deltaTime);
   }
 
   // Handle window resize
@@ -478,6 +520,99 @@ function initGame() {
           coordIndicator.style.display = 'block';
         }
       }
+    }
+  });
+
+  // Track UI visibility state for 'b' key toggle
+  let uiHidden = false;
+  const uiVisibilityState = new Map(); // Store original visibility state for each element
+  const npcVisibilityState = new Map(); // Store original visibility state for each NPC
+
+  // Handle B key to toggle all UI visibility and NPCs
+  document.addEventListener('keydown', (event) => {
+    if (event.code === 'KeyB' && !event.repeat) {
+      uiHidden = !uiHidden;
+      
+      // List of all UI element selectors to toggle
+      const uiElements = [
+        '#hotbar-container',
+        '#settings-container',
+        '#camera-view-container',
+        '#chat-container',
+        '#anger-ui',
+        '#coordinate-indicator',
+        '#clock-indicator',
+        '#location-indicator',
+        '#held-item-hud'
+      ];
+      
+      uiElements.forEach(selector => {
+        const element = document.querySelector(selector);
+        if (!element) return;
+        
+        if (uiHidden) {
+          // Hide: store current visibility state
+          const computedStyle = window.getComputedStyle(element);
+          const state = {
+            display: computedStyle.display,
+            visibility: computedStyle.visibility,
+            opacity: computedStyle.opacity,
+            hasVisibleClass: element.classList.contains('visible'),
+            originalDisplay: element.style.display || '',
+            originalVisibility: element.style.visibility || '',
+            originalOpacity: element.style.opacity || ''
+          };
+          uiVisibilityState.set(selector, state);
+          
+          // Hide the element
+          element.style.display = 'none';
+        } else {
+          // Show: restore original visibility state
+          const state = uiVisibilityState.get(selector);
+          if (state) {
+            // Restore inline styles
+            element.style.display = state.originalDisplay || state.display;
+            element.style.visibility = state.originalVisibility || state.visibility;
+            element.style.opacity = state.originalOpacity || state.opacity;
+            
+            // Restore 'visible' class for indicators that use it
+            if (state.hasVisibleClass) {
+              element.classList.add('visible');
+            }
+          } else {
+            // Fallback: show element with default display
+            element.style.display = '';
+          }
+        }
+      });
+      
+      // Toggle NPC visibility
+      if (npcs) {
+        npcs.forEach((npc, index) => {
+          const sprite = npc.getSprite();
+          if (!sprite) return;
+          
+          if (uiHidden) {
+            // Hide: store original visibility state
+            if (!npcVisibilityState.has(index)) {
+              npcVisibilityState.set(index, sprite.visible);
+            }
+            sprite.visible = false;
+          } else {
+            // Show: restore original visibility state
+            const originalVisible = npcVisibilityState.get(index);
+            if (originalVisible !== undefined) {
+              sprite.visible = originalVisible;
+            } else {
+              // Fallback: show NPC (default is visible)
+              sprite.visible = true;
+            }
+          }
+        });
+      }
+      
+      // Note: We don't toggle #ddr-fight-overlay as it's controlled by the fight system
+      // and should only be shown/hidden by the anger system logic
     }
   });
 

@@ -1,0 +1,739 @@
+.anger-ui {
+  position: fixed;
+  right: 18px;
+  top: 30%;
+  width: 34px;
+  height: 260px;
+  z-index: 1200;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-family: Tahoma, Verdana, "Arial Black", sans-serif;
+}
+
+.anger-title {
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: #ffb3b3;
+  text-shadow: 0 0 4px rgba(255, 60, 60, 0.6);
+}
+
+.anger-frame {
+  position: relative;
+  width: 34px;
+  height: 260px;
+  background: linear-gradient(180deg, #240000 0%, #140000 100%);
+  border: 2px solid #3a0000;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 0 8px rgba(0, 0, 0, 0.6),
+    0 0 10px rgba(255, 40, 40, 0.2);
+}
+
+.anger-frame::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+}
+
+.anger-fill {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  transform-origin: bottom;
+  transform: scaleY(var(--anger-scale, 0));
+  background: linear-gradient(
+    180deg,
+    var(--anger-bright, #ff3b3b) 0%,
+    #7b0000 100%
+  );
+  box-shadow: inset 0 0 6px rgba(255, 255, 255, 0.2);
+  transition: transform 0.12s linear;
+}
+
+.anger-fill.anger-pop {
+  animation: anger-pop 0.15s ease-out;
+}
+
+.anger-shine {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  right: 4px;
+  height: 12px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0));
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.anger-ticks {
+  position: absolute;
+  inset: 4px;
+  background-image: repeating-linear-gradient(
+    to top,
+    rgba(255, 255, 255, 0.18) 0px,
+    rgba(255, 255, 255, 0.18) 1px,
+    transparent 1px,
+    transparent 9px
+  );
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+@keyframes anger-pop {
+  0% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.35);
+    transform: scaleY(var(--anger-scale, 0)) scaleX(1.05);
+  }
+  100% {
+    filter: brightness(1);
+  }
+}
+
+/* ===========================================
+   DDR FIGHT UI - Y2K Flash Style (FULL-SCREEN MODE)
+   =========================================== */
+
+.ddr-fight-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 10000; /* Very high z-index to cover everything */
+  pointer-events: auto;
+  background-image: url('/minigamebackground.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Arial Black', 'Comic Sans MS', Tahoma, sans-serif;
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out;
+}
+
+.ddr-fight-overlay.hidden {
+  display: none;
+}
+
+.ddr-fight-overlay.fade-in {
+  opacity: 1;
+}
+
+.ddr-fight-overlay.fade-out {
+  opacity: 0;
+}
+
+.ddr-fight-ui {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: 20px;
+  pointer-events: none;
+  margin-left: 700px; /* Shift entire UI 100px to the right */
+}
+
+/* ===========================================
+   NPC OVERLAY (Left Side)
+   =========================================== */
+
+.ddr-npc-overlay {
+  position: fixed;
+  left: 50px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 384px; /* 320px * 1.2 = 384px (20% bigger) */
+  height: 768px; /* 640px * 1.2 = 768px (20% bigger) */
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  pointer-events: none;
+  z-index: 10001;
+  display: none;
+  animation: npc-squeeze-idle 1.5s ease-in-out infinite;
+  filter: drop-shadow(4px 8px 16px rgba(0, 0, 0, 0.6));
+}
+
+@keyframes npc-squeeze-idle {
+  0%, 100% {
+    transform: translateY(-50%) scaleY(1);
+  }
+  50% {
+    transform: translateY(-50%) scaleY(0.85);
+  }
+}
+
+.ddr-npc-overlay.character-hit-reaction {
+  animation: character-hit-reaction 0.2s ease-out;
+}
+
+@keyframes character-hit-reaction {
+  0% {
+    transform: translateY(-50%) scale(1, 1);
+  }
+  30% {
+    transform: translateY(-50%) scale(0.85, 0.92) translateX(-8px);
+  }
+  60% {
+    transform: translateY(-50%) scale(0.9, 0.95) translateX(4px);
+  }
+  100% {
+    transform: translateY(-50%) scale(1, 1);
+  }
+}
+
+/* ===========================================
+   HIT POP LAYER (Punch Feedback)
+   =========================================== */
+
+.hit-pop-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10003;
+  overflow: hidden;
+}
+
+.fist-pop {
+  position: fixed;
+  pointer-events: none;
+  user-select: none;
+  will-change: transform, opacity;
+}
+
+/* ===========================================
+   MISS PUNISHMENT (Screen Flash + Jumpscare)
+   =========================================== */
+
+.miss-flash-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(255, 0, 0, 0);
+  pointer-events: none;
+  z-index: 10004;
+  opacity: 0;
+  transition: opacity 0.1s ease-out;
+}
+
+.miss-flash-overlay.miss-flash-active {
+  background: rgba(255, 0, 0, 0.4);
+  opacity: 1;
+  animation: miss-flash 0.3s ease-out;
+}
+
+@keyframes miss-flash {
+  0% {
+    opacity: 0;
+    background: rgba(255, 0, 0, 0);
+  }
+  50% {
+    opacity: 1;
+    background: rgba(255, 0, 0, 0.5);
+  }
+  100% {
+    opacity: 0;
+    background: rgba(255, 0, 0, 0);
+  }
+}
+
+.jumpscare-fist {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  width: 600px;
+  height: auto;
+  pointer-events: none;
+  z-index: 10005;
+  opacity: 0;
+  filter: drop-shadow(8px 16px 24px rgba(0, 0, 0, 0.8));
+  will-change: transform, opacity;
+}
+
+.jumpscare-fist.jumpscare-active {
+  animation: jumpscare-fist-pop 0.4s ease-out;
+}
+
+@keyframes jumpscare-fist-pop {
+  0% {
+    transform: translate(-50%, -50%) scale(0) rotate(-10deg);
+    opacity: 0;
+  }
+  20% {
+    transform: translate(-50%, -50%) scale(1.2) rotate(5deg);
+    opacity: 1;
+  }
+  40% {
+    transform: translate(-50%, -50%) scale(1) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(0.8) rotate(0deg);
+    opacity: 0;
+  }
+}
+
+/* ===========================================
+   COMBO NOTIFICATION
+   =========================================== */
+
+.combo-notification {
+  position: fixed;
+  pointer-events: none;
+  z-index: 10006;
+  transform: translate(-50%, -50%) scale(0);
+  width: 437.5px; /* 350px * 1.25 = 437.5px (25% bigger) */
+  height: auto;
+  opacity: 1;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); /* Bouncy stamp animation */
+  filter: drop-shadow(4px 8px 16px rgba(0, 0, 0, 0.8));
+  will-change: transform;
+}
+
+/* ===========================================
+   BLOOD SPRAY EFFECT (Y2K Flash Style)
+   =========================================== */
+
+.blood-spray-container {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10007;
+  overflow: hidden;
+}
+
+.blood-spray-particle {
+  position: fixed;
+  pointer-events: none;
+  user-select: none;
+  will-change: transform, opacity;
+}
+
+/* ===========================================
+   ENEMY HEALTH BAR (Y2K Flash Style)
+   =========================================== */
+
+.enemy-hp {
+  position: fixed;
+  pointer-events: none;
+  z-index: 10002; /* Below fist/punch (10003) but above NPC overlay (10001) */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.enemy-hp-label {
+  font-family: 'Arial Black', Tahoma, sans-serif;
+  font-size: 18px;
+  font-weight: bold;
+  color: #ffdddd;
+  text-shadow: 
+    0 0 6px rgba(255, 100, 100, 0.8),
+    2px 2px 0px rgba(0, 0, 0, 0.8),
+    3px 3px 0px rgba(255, 255, 255, 0.3);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.enemy-hp-frame {
+  position: relative;
+  width: 50px;
+  height: 600px;
+  background: linear-gradient(180deg, #1a0000 0%, #0a0000 100%);
+  border: 3px solid #3a0000;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+    inset 0 0 12px rgba(0, 0, 0, 0.7),
+    0 4px 8px rgba(0, 0, 0, 0.5);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.enemy-hp-frame::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  pointer-events: none;
+  border-radius: 2px;
+}
+
+.enemy-hp-fill {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(180deg, #22dd22 0%, #139e13dd 100%);
+  box-shadow: 
+    inset 0 0 8px rgba(255, 255, 255, 0.25);
+  transition: height 0.15s ease-out, background 0.2s ease-out;
+  transform-origin: bottom;
+}
+
+.enemy-hp-shine {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  right: 6px;
+  height: 20px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0));
+  opacity: 0.5;
+  pointer-events: none;
+  border-radius: 2px 2px 0 0;
+}
+
+.enemy-hp-damaged {
+  animation: enemy-hp-damage-flash 0.15s ease-out;
+}
+
+@keyframes enemy-hp-damage-flash {
+  0% {
+    transform: translateY(-50%) scale(1);
+    filter: brightness(1);
+  }
+  50% {
+    transform: translateY(-50%) scale(1.08);
+    filter: brightness(1.4);
+  }
+  100% {
+    transform: translateY(-50%) scale(1);
+    filter: brightness(1);
+  }
+}
+
+/* ===========================================
+   FIGHT TITLE (Mortal Kombat Style)
+   =========================================== */
+
+.fight-title {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.3);
+  z-index: 10009;
+  pointer-events: none;
+  user-select: none;
+  opacity: 0;
+  max-width: 80vw;
+  max-height: 40vh;
+  width: auto;
+  height: auto;
+  filter: drop-shadow(4px 4px 8px rgba(0, 0, 0, 0.9));
+  transition: opacity 0.3s ease-out;
+}
+
+.fight-title.fight-title-active {
+  animation: fight-title-pop 2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  opacity: 1;
+}
+
+@keyframes fight-title-pop {
+  0% {
+    transform: translate(-50%, -50%) scale(0.1) translateY(-100px);
+    opacity: 0;
+    filter: drop-shadow(4px 4px 8px rgba(0, 0, 0, 0.9)) blur(10px);
+  }
+  20% {
+    transform: translate(-50%, -50%) scale(1.2) translateY(0);
+    opacity: 1;
+    filter: drop-shadow(4px 4px 8px rgba(0, 0, 0, 0.9)) blur(0px);
+  }
+  30% {
+    transform: translate(-50%, -50%) scale(1.05) translateY(0);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1) translateY(0);
+    opacity: 1;
+    filter: drop-shadow(4px 4px 8px rgba(0, 0, 0, 0.9));
+  }
+  80% {
+    transform: translate(-50%, -50%) scale(1) translateY(0);
+    opacity: 1;
+    filter: drop-shadow(4px 4px 8px rgba(0, 0, 0, 0.9));
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(0.9) translateY(0);
+    opacity: 0;
+    filter: drop-shadow(4px 4px 8px rgba(0, 0, 0, 0.9));
+  }
+}
+
+.ddr-title {
+  font-size: 48px;
+  font-weight: bold;
+  color: #ff0000;
+  text-shadow: 
+    0 0 10px rgba(255, 0, 0, 0.8),
+    0 0 20px rgba(255, 100, 100, 0.6),
+    3px 3px 0px rgba(0, 0, 0, 0.8),
+    4px 4px 0px rgba(255, 255, 255, 0.3);
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  margin-bottom: 20px;
+  animation: title-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes title-pulse {
+  0%, 100% {
+    transform: scale(1);
+    text-shadow: 
+      0 0 10px rgba(255, 0, 0, 0.8),
+      0 0 20px rgba(255, 100, 100, 0.6),
+      3px 3px 0px rgba(0, 0, 0, 0.8),
+      4px 4px 0px rgba(255, 255, 255, 0.3);
+  }
+  50% {
+    transform: scale(1.05);
+    text-shadow: 
+      0 0 15px rgba(255, 0, 0, 1),
+      0 0 30px rgba(255, 150, 150, 0.8),
+      3px 3px 0px rgba(0, 0, 0, 0.8),
+      4px 4px 0px rgba(255, 255, 255, 0.5);
+  }
+}
+
+.ddr-stats {
+  display: flex;
+  gap: 30px;
+  margin-bottom: 30px;
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.ddr-score,
+.ddr-combo {
+  padding: 12px 20px;
+  background: linear-gradient(180deg, #ffff00 0%, #ffaa00 100%);
+  border: 4px solid #000000;
+  border-radius: 8px;
+  box-shadow: 
+    inset 0 2px 4px rgba(255, 255, 255, 0.5),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.3),
+    0 4px 8px rgba(0, 0, 0, 0.5);
+  color: #000000;
+  text-shadow: 1px 1px 0px rgba(255, 255, 255, 0.5);
+  letter-spacing: 2px;
+}
+
+.ddr-lanes {
+  display: flex;
+  gap: 20px;
+  width: 600px;
+  height: 900px; /* Extended vertically to stretch down further */
+  position: relative;
+}
+
+.ddr-lane {
+  position: relative;
+  flex: 1;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0.7) 100%);
+  border: none;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.ddr-receptor {
+  position: absolute;
+  bottom: 50px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 96px;
+  height: 96px;
+  border: 6px solid #ffffff;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  z-index: 10;
+}
+
+.ddr-receptor svg {
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0.8; /* Slightly transparent outline */
+}
+
+.ddr-receptor.receptor-hit {
+  background: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 4px 12px rgba(255, 255, 255, 0.25);
+  animation: receptor-hit-flash 0.2s ease-out;
+}
+
+.ddr-receptor.receptor-miss {
+  background: rgba(255, 80, 80, 0.2);
+  box-shadow: 0 4px 10px rgba(255, 80, 80, 0.35);
+  animation: receptor-miss-shake 0.2s ease-out;
+}
+
+@keyframes receptor-hit-flash {
+  0% {
+    transform: translateX(-50%) scale(1);
+    filter: brightness(1);
+  }
+  50% {
+    transform: translateX(-50%) scale(1.15);
+    filter: brightness(1.5);
+  }
+  100% {
+    transform: translateX(-50%) scale(1);
+    filter: brightness(1);
+  }
+}
+
+@keyframes receptor-miss-shake {
+  0%, 100% {
+    transform: translateX(-50%);
+  }
+  25% {
+    transform: translateX(calc(-50% + 5px));
+  }
+  75% {
+    transform: translateX(calc(-50% - 5px));
+  }
+}
+
+.ddr-note {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 70px;
+  height: 70px;
+  border: 5px solid #ffffff;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #000000; /* Black arrow for notes */
+  z-index: 5;
+  /* Use transform for smooth GPU-accelerated movement */
+  will-change: transform;
+}
+
+.ddr-note svg {
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  color: #000000; /* Black arrow for notes */
+}
+
+/* ===========================================
+   JUDGEMENT TEXT EFFECTS
+   =========================================== */
+
+.ddr-judgement-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 72px;
+  font-weight: bold;
+  font-family: 'Arial Black', 'Comic Sans MS', Tahoma, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 8px;
+  z-index: 10001;
+  pointer-events: none;
+  opacity: 0;
+  display: none;
+  transition: opacity 0.2s ease-out, transform 0.3s ease-out;
+}
+
+.ddr-judgement-text.judgement-show {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.ddr-judgement-nice {
+  color: #ffffff;
+  text-shadow: 
+    0 0 20px rgba(255, 255, 255, 0.8),
+    0 0 40px rgba(255, 255, 255, 0.6),
+    3px 3px 0px rgba(0, 0, 0, 0.8);
+  animation: judgement-early-pulse 0.8s ease-out;
+}
+
+.ddr-judgement-ok {
+  color: #ffff99;
+  text-shadow: 
+    0 0 16px rgba(255, 255, 153, 0.7),
+    0 0 28px rgba(255, 255, 153, 0.6),
+    3px 3px 0px rgba(0, 0, 0, 0.8);
+  animation: judgement-early-pulse 0.8s ease-out;
+}
+
+.ddr-judgement-miss {
+  color: #ff6666;
+  text-shadow: 
+    0 0 16px rgba(255, 102, 102, 0.7),
+    0 0 28px rgba(255, 102, 102, 0.6),
+    3px 3px 0px rgba(0, 0, 0, 0.8);
+  animation: judgement-late-shake 0.8s ease-out;
+}
+
+.ddr-judgement-buffered::after {
+  content: "EARLY!";
+  display: block;
+  margin-top: 8px;
+  font-size: 28px;
+  letter-spacing: 4px;
+  color: #ffff00;
+  text-shadow:
+    0 0 12px rgba(255, 255, 0, 0.7),
+    0 0 24px rgba(255, 255, 0, 0.6);
+}
+
+@keyframes judgement-early-pulse {
+  0% {
+    transform: translate(-50%, -50%) scale(0.5);
+    opacity: 0;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.8;
+  }
+}
+
+@keyframes judgement-late-shake {
+  0% {
+    transform: translate(-50%, -50%) scale(0.5);
+    opacity: 0;
+  }
+  25% {
+    transform: translate(calc(-50% + 10px), -50%) scale(1.1);
+    opacity: 1;
+  }
+  50% {
+    transform: translate(calc(-50% - 10px), -50%) scale(1.1);
+  }
+  75% {
+    transform: translate(calc(-50% + 5px), -50%) scale(1);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.8;
+  }
+}

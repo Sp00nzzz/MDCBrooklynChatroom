@@ -43,11 +43,27 @@ export function createPlayer(camera, domElement, colliders) {
     left: false,
     right: false
   };
+
+  let movementLocked = false;
+  let cameraLocked = false;
+  let lockedCameraPosition = null;
+  let lockedCameraQuaternion = null;
+  let originalConnect = null;
+  let restoreFrames = 0; // Frames to continue restoring after unlock
   
   // No-collision mode toggle
   let noCollision = false;
   
   const onKeyDown = (event) => {
+    // Don't process movement keys if movement is locked (e.g., during DDR fight)
+    if (movementLocked) {
+      // Only allow non-movement keys (like KeyV for no-collision toggle)
+      if (event.code === 'KeyV') {
+        noCollision = !noCollision;
+      }
+      return;
+    }
+    
     switch (event.code) {
       case 'KeyW': keys.forward = true; break;
       case 'KeyS': keys.backward = true; break;
@@ -58,6 +74,9 @@ export function createPlayer(camera, domElement, colliders) {
   };
   
   const onKeyUp = (event) => {
+    // Don't process movement keys if movement is locked (e.g., during DDR fight)
+    if (movementLocked) return;
+    
     switch (event.code) {
       case 'KeyW': keys.forward = false; break;
       case 'KeyS': keys.backward = false; break;
@@ -119,6 +138,29 @@ export function createPlayer(camera, domElement, colliders) {
   function update(deltaTime) {
     if (!controls.isLocked) return;
     
+    // Lock camera position and rotation during fight
+    if (cameraLocked && lockedCameraPosition && lockedCameraQuaternion) {
+      // Restore exact position and rotation every frame
+      // This must happen AFTER PointerLockControls updates, so we do it here
+      camera.position.copy(lockedCameraPosition);
+      camera.quaternion.copy(lockedCameraQuaternion);
+      return; // Don't process movement
+    }
+    
+    // Continue restoring camera for a few frames after unlock to ensure it sticks
+    if (restoreFrames > 0 && lockedCameraPosition && lockedCameraQuaternion) {
+      camera.position.copy(lockedCameraPosition);
+      camera.quaternion.copy(lockedCameraQuaternion);
+      restoreFrames--;
+      if (restoreFrames === 0) {
+        // Clear after final restore
+        lockedCameraPosition = null;
+        lockedCameraQuaternion = null;
+      }
+    }
+    
+    if (movementLocked) return;
+    
     // Get camera forward direction projected onto XZ plane (yaw only, ignore pitch)
     camera.getWorldDirection(forward);
     forward.y = 0;
@@ -168,6 +210,56 @@ export function createPlayer(camera, domElement, colliders) {
   return {
     controls,
     velocity,
-    update
+    update,
+    setMovementLocked(locked) {
+      movementLocked = locked;
+      // Clear all movement keys and velocity when locking to prevent movement
+      if (locked) {
+        keys.forward = false;
+        keys.backward = false;
+        keys.left = false;
+        keys.right = false;
+        velocity.set(0, 0, 0);
+      }
+    },
+    setCameraLocked(locked) {
+      cameraLocked = locked;
+      if (locked) {
+        // Store current camera position and full quaternion rotation
+        lockedCameraPosition = camera.position.clone();
+        lockedCameraQuaternion = camera.quaternion.clone();
+        restoreFrames = 0; // Reset restore frames
+        
+        // Disable PointerLockControls rotation updates by overriding connect
+        if (!originalConnect) {
+          originalConnect = controls.connect.bind(controls);
+        }
+        // Override connect to prevent rotation updates
+        controls.connect = function() {
+          // Do nothing - prevents mouse movement from rotating camera
+        };
+      } else {
+        // Restore PointerLockControls connect method FIRST
+        if (originalConnect) {
+          controls.connect = originalConnect;
+          originalConnect = null;
+        }
+        
+        // Restore exact camera position and rotation
+        if (lockedCameraPosition && lockedCameraQuaternion) {
+          camera.position.copy(lockedCameraPosition);
+          camera.quaternion.copy(lockedCameraQuaternion);
+          
+          // Continue restoring for 2 more frames to ensure it sticks
+          // (in case controls update it after we restore)
+          restoreFrames = 2;
+        } else {
+          // No stored state, clear immediately
+          lockedCameraPosition = null;
+          lockedCameraQuaternion = null;
+          restoreFrames = 0;
+        }
+      }
+    }
   };
 }

@@ -74,6 +74,7 @@ export class NPCSprite {
     this.colliders = colliders;
     this.characterName = characterName; // Link to chat character name
     this.speechBubble = null; // Active dialogue bubble (null if none)
+    this.texturePath = typeof textureOrPath === 'string' ? textureOrPath : null; // Store texture path for UI
     
     // Identify Diddy NPC by texture path or character name
     const texturePathStr = typeof textureOrPath === 'string' ? textureOrPath.toLowerCase() : '';
@@ -417,7 +418,7 @@ export class NPCSprite {
         this.pushCooldown = 0;
       }
     }
-    
+
     this.updateWander(deltaTime);
     this.moveWithCollision(deltaTime);
     this.updateBillboard(camera);
