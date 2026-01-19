@@ -106,6 +106,12 @@ import {
   onVolumeChange
 } from './ui/settings.js';
 
+// Mobile detection - check if device is mobile
+function isMobileDevice() {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+         (window.innerWidth <= 768 && window.innerHeight <= 1024 && 'ontouchstart' in window);
+}
+
 // Game state
 let gameStarted = false;
 let scene, camera, renderer, player, npcs, npcMap, clock, gameStartTime, chatUI, nextMessageTime;
@@ -979,6 +985,25 @@ if (document.readyState === 'loading') {
 }
 
 function setupStartScreen() {
+  // Check if mobile device - if so, show message and prevent game initialization
+  if (isMobileDevice()) {
+    const mobileMessage = document.getElementById('mobile-message');
+    if (mobileMessage) {
+      mobileMessage.classList.add('visible');
+    }
+    // Hide start screen and canvas container
+    const startScreen = document.getElementById('start-screen');
+    const canvasContainer = document.getElementById('canvas-container');
+    if (startScreen) {
+      startScreen.style.display = 'none';
+    }
+    if (canvasContainer) {
+      canvasContainer.style.display = 'none';
+    }
+    // Exit early - don't initialize game
+    return;
+  }
+  
   // Initialize the eye opening transition system
   initEyeOpenTransition();
   

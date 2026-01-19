@@ -229,9 +229,40 @@
     #canvas-container.visible {
       display: block;
     }
+    
+    #mobile-message {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: #ffffff;
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 10000;
+      font-family: 'Comic Sans MS', 'Comic Sans', cursive;
+      color: #000000;
+      text-align: center;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    
+    #mobile-message.visible {
+      display: flex;
+    }
+    
+    #mobile-message-text {
+      font-size: 1.5rem;
+      line-height: 1.6;
+    }
   </style>
 </head>
 <body>
+  <div id="mobile-message">
+    <div id="mobile-message-text">yeah sorry bro this game is only playable on ur computer</div>
+  </div>
   <div id="start-screen">
     <div id="start-screen-controls">
       WASD - Move around<br>
