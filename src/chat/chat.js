@@ -94,7 +94,7 @@ export const CHARACTERS = {
     style: 'sarcastic',
     phrases: [
       'still got the best connections trust',
-      'my parties were better than diddys',
+      'wait ignore that one photo of me',
       "youre cute thinking you can cancel royalty",
       "dont @ me unless youre on the manifest ",
       "wdym they released the files?",
