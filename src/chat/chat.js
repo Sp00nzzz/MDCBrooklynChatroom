@@ -94,7 +94,7 @@ export const CHARACTERS = {
     style: 'sarcastic',
     phrases: [
       'still got the best connections trust',
-      'jeffrey always said i throw legendary parties',
+      'my parties were better than diddys',
       "youre cute thinking you can cancel royalty",
       "dont @ me unless youre on the manifest ",
       "wdym they released the files?",
@@ -132,14 +132,10 @@ export const CHARACTERS = {
     color: '#70a1ff', // Blue
     style: 'arrogant',
     phrases: [
-      'I\'m the smartest person in this entire facility, and I can prove it.',
-      'These guards couldn\'t pass a basic economics exam if their lives depended on it.',
-      'Prison is just another market inefficiency I\'ll exploit.',
-      'I\'ve read more books in here than most people read in a lifetime.',
-      'The pharmaceutical industry is more corrupt than this prison system.',
-      'I\'m using this time to develop my next billion-dollar idea.',
-      'These inmates don\'t understand the value of intellectual property.',
-      'I could run this prison better than the current administration.'
+      'money money money',
+      'yo follow me on X guys',
+      'someone said I look like ben shapiro',
+      'type shi',
     ]
   }
 };
