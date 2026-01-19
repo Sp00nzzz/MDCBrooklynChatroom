@@ -33,7 +33,9 @@ import {
   initMaduroAudio,
   updateMaduroAudio,
   initCohenAudio,
-  updateCohenAudio
+  updateCohenAudio,
+  initMrBeastAudio,
+  updateMrBeastAudio
 } from './audio/proximityAudio.js';
 // Hotbar UI - item selection slots at bottom of screen
 import { 
@@ -60,6 +62,13 @@ import {
   update as updateMarlboro,
   handleClick as handleMarlboroClick
 } from './items/marlboroItem.js';
+// Feastables item - shows feastables HUD
+import {
+  initFeastables,
+  setSelected as setFeastablesSelected,
+  update as updateFeastables,
+  handleClick as handleFeastablesClick
+} from './items/feastablesItem.js';
 // Oil Squirt VFX - visual particle effect for baby oil
 import {
   initOilSquirtVfx,
@@ -72,6 +81,12 @@ import {
   spawnSmokePuff,
   updateSmokeVfx
 } from './vfx/smokeVfx.js';
+// Chocolate Crumb VFX 2D - 2D DOM overlay crumbs when eating Feastables
+import {
+  initChocolateCrumbVfx2D,
+  spawnChocolateCrumbs2D,
+  getFeastablesScreenAnchor
+} from './vfx/chocolateCrumbVfx2D.js';
 // Confetti VFX - 3D world-space celebration effect
 import { ConfettiSystem } from './vfx/confettiVfx.js';
 // Push Interaction - NPC push system with hand overlay
@@ -82,7 +97,7 @@ import {
   isPushActive
 } from './pushInteraction.js';
 // Low-poly wooden table with baby oil images
-import { createTable, updateTablePickup, createTableCollider, checkTablePickup } from './table.js';
+import { createTable, updateTablePickup, createTableCollider, checkTablePickup, createStandalonePickup } from './table.js';
 // Settings UI - top right settings panel with master volume control
 import {
   initSettings,
@@ -179,6 +194,13 @@ function initGame() {
   const table2Collider = createTableCollider(table2Position, false);
   colliders.push(table2Collider);
 
+  // Create standalone feastables pickup item at world position (-29, 1.6, -6.27)
+  const feastablesPosition = new THREE.Vector3(-29, 1.6, -6.27);
+  const feastablesSprite = createStandalonePickup(feastablesPosition, '/feastables.png', 'feastables');
+  // Make the feastables sprite taller (wider vertically) in 3D space
+  feastablesSprite.scale.set(0.6, 1.0, 1); // Increased Y scale from 0.75 to 1.0 for taller appearance
+  scene.add(feastablesSprite);
+
   // Create poster on the wall above the cigarette table
   // Left wall is at Z = -7.25, table is at X = -6.5, Z = -6.5
   // Position poster at same X as table, on the wall surface, above the table
@@ -232,6 +254,30 @@ function initGame() {
   poster2.rotation.y = 0;
   
   scene.add(poster2);
+
+  // Create third poster using promoposter.png at position (-29.9, 1.6, -1.98)
+  const poster3Texture = textureLoader.load('/promoposter.png');
+  poster3Texture.colorSpace = THREE.SRGBColorSpace;
+  
+  const poster3Material = new THREE.MeshStandardMaterial({
+    map: poster3Texture,
+    emissiveMap: poster3Texture,
+    emissive: new THREE.Color(0xffffff),
+    emissiveIntensity: 0.8,
+    transparent: false
+  });
+  
+  // Create a plane for the third poster (same dimensions)
+  const poster3Geometry = new THREE.PlaneGeometry(posterWidth, posterHeight);
+  const poster3 = new THREE.Mesh(poster3Geometry, poster3Material);
+  
+  // Position at (-29.9, 2.4, -1.98)
+  poster3.position.set(-29.9, 2.4, -1.98);
+  
+  // Rotate 180 degrees around Y axis (from the 90 degree counter-clockwise position)
+  poster3.rotation.y = Math.PI / 2;
+  
+  scene.add(poster3);
 
   // Create player
   player = createPlayer(camera, renderer.domElement, colliders);
@@ -404,17 +450,24 @@ function initGame() {
   // Add posters to raycast targets so splats can spawn on them
   raycastTargets.push(poster);
   raycastTargets.push(poster2);
+  raycastTargets.push(poster3);
   
   initBabyOil({ scene, camera, raycastTargets });
   
   // Initialize Marlboro item system
   initMarlboro();
   
+  // Initialize Feastables item system
+  initFeastables();
+  
   // Initialize Oil Squirt VFX system
   initOilSquirtVfx();
   
   // Initialize Smoke VFX system
   initSmokeVfx(scene);
+  
+  // Initialize Chocolate Crumb VFX 2D system
+  initChocolateCrumbVfx2D();
 
   // Animation loop
   function animate() {
@@ -472,6 +525,7 @@ function initGame() {
       update6ix9ineAudio(deltaTime, camera.position);
       updateMaduroAudio(deltaTime, camera.position);
       updateCohenAudio(deltaTime, camera.position);
+      updateMrBeastAudio(deltaTime, camera.position);
 
       // Update push interaction system
       updatePushInteraction(deltaTime, camera.position);
@@ -487,6 +541,9 @@ function initGame() {
       } else if (pickedUpItemType === 'marlboro') {
         // Marlboro was just picked up - add it to hotbar slot 3
         setSlotItem(3, 'marlboro', '/icon/cigs.png');
+      } else if (pickedUpItemType === 'feastables') {
+        // Feastables was just picked up - add it to hotbar slot 4
+        setSlotItem(4, 'feastables', '/feastables.png');
       }
 
       // Update camera view preview (only renders when enabled for performance)
@@ -505,11 +562,16 @@ function initGame() {
       // Update marlboro item (HUD animation)
       updateMarlboro(deltaTime, isPlayerMoving);
 
+      // Update feastables item (HUD animation)
+      updateFeastables(deltaTime, isPlayerMoving);
+
       // Update oil squirt VFX particles
       updateOilSquirtVfx(deltaTime);
 
       // Update smoke VFX particles
       updateSmokeVfx(deltaTime);
+      
+      // Note: Chocolate crumb VFX 2D uses DOM animations (no update needed)
 
     } else {
       // During fight: render scene with opponent visible
@@ -684,11 +746,17 @@ function initGame() {
         if (previousItemType === 'marlboro' && newItemType !== 'marlboro') {
           setMarlboroSelected(false, true);
         }
+        if (previousItemType === 'feastables' && newItemType !== 'feastables') {
+          setFeastablesSelected(false, true);
+        }
         if (newItemType === 'babyoil') {
           setBabyOilSelected(true, true);
         }
         if (newItemType === 'marlboro') {
           setMarlboroSelected(true, true);
+        }
+        if (newItemType === 'feastables') {
+          setFeastablesSelected(true, true);
         }
         return; // Don't show visuals during push
       }
@@ -709,6 +777,11 @@ function initGame() {
       // Handle marlboro deselection (hide first)
       if (previousItemType === 'marlboro' && newItemType !== 'marlboro') {
         setMarlboroSelected(false, isSwitchingItems);
+      }
+      
+      // Handle feastables deselection (hide first)
+      if (previousItemType === 'feastables' && newItemType !== 'feastables') {
+        setFeastablesSelected(false, isSwitchingItems);
       }
       
       // Handle camera deselection (hide first when switching away)
@@ -764,10 +837,23 @@ function initGame() {
         }
         setMarlboroSelected(true, isSwitchingItems);
       }
+      
+      // Handle feastables selection (show after camera is handled)
+      if (newItemType === 'feastables') {
+        // Final check: ensure camera is hidden before showing HUD
+        const cameraEl = document.getElementById('camera-view-container');
+        if (cameraEl && cameraEl.style.display !== 'none') {
+          cameraEl.style.transition = 'none';
+          cameraEl.style.display = 'none';
+          cameraEl.style.transform = 'translateY(100%)';
+          cameraEl.offsetHeight; // Force reflow
+        }
+        setFeastablesSelected(true, isSwitchingItems);
+      }
     }
   });
   
-  // Handle mouse input for baby oil squeezing and marlboro clicking
+  // Handle mouse input for baby oil squeezing, marlboro clicking, and feastables clicking
   // Only active when items are selected and pointer is locked
   document.addEventListener('mousedown', (event) => {
     if (event.button === 0 && player.controls.isLocked) {
@@ -789,6 +875,52 @@ function initGame() {
         const smokePos = camera.position.clone().add(smokeOffset);
         
         spawnSmokePuff(smokePos);
+      } else if (getSelectedItemType() === 'feastables') {
+        const shouldSpawnMrBeast = handleFeastablesClick();
+        
+        // Spawn 2D chocolate crumbs overlay at screen position
+        const screenAnchor = getFeastablesScreenAnchor();
+        spawnChocolateCrumbs2D(screenAnchor);
+        
+        // Spawn Mr. Beast NPC after 4 clicks
+        if (shouldSpawnMrBeast) {
+          // Calculate position in front of player (2 units forward)
+          const forward = new THREE.Vector3();
+          camera.getWorldDirection(forward);
+          forward.y = 0; // Keep on ground level
+          forward.normalize();
+          
+          const spawnPosition = camera.position.clone();
+          spawnPosition.add(forward.multiplyScalar(2.0)); // 2 units in front
+          spawnPosition.y = 1.5; // Ground level
+          
+          // Create Mr. Beast NPC
+          const mrBeastNPC = new NPCSprite(
+            spawnPosition,
+            '/mrbeast.png',
+            npcColliders,
+            'Mr. Beast'
+          );
+          
+          // Make Mr. Beast wide like Kool-Aid Man
+          mrBeastNPC.getSprite().scale.set(3, 3, 1);
+          
+          // Add to scene
+          scene.add(mrBeastNPC.getSprite());
+          
+          // Add to npcs array
+          npcs.push(mrBeastNPC);
+          
+          // Add to npcMap for dialogue linking
+          if (mrBeastNPC.characterName) {
+            npcMap.set(mrBeastNPC.characterName, mrBeastNPC);
+          }
+          
+          // Initialize proximity audio
+          initMrBeastAudio(audioListener, mrBeastNPC);
+          
+          console.log('Mr. Beast spawned!');
+        }
       }
     }
   });

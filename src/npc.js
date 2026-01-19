@@ -92,6 +92,9 @@ export class NPCSprite {
     
     // Identify Cohen NPC by texture path or character name (matches Michael Cohen)
     this.isCohen = texturePathStr.includes('cohen') || charNameStr.includes('cohen');
+    
+    // Identify Mr. Beast NPC by texture path or character name
+    this.isMrBeast = texturePathStr.includes('mrbeast') || charNameStr.includes('mr. beast') || charNameStr.includes('mr beast');
 
     // Movement/wander parameters
     this.baseY = this.position.y;           // Keep NPCs grounded at this Y

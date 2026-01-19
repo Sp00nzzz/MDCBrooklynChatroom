@@ -253,3 +253,46 @@ export function isBabyOilPickedUp() {
   const babyOilTable = tables.find(t => t.itemType === 'babyoil');
   return babyOilTable ? babyOilTable.pickedUp : false;
 }
+
+/**
+ * Creates a standalone pickup item sprite at a specific world position (without a table).
+ * The item will bob and rotate like other pickup items and can be picked up using checkTablePickup.
+ * 
+ * @param {THREE.Vector3} position - World position to place the item (Y can be any height)
+ * @param {string} itemTexturePath - Path to the item texture (e.g., '/feastables.png')
+ * @param {string} itemType - Item type identifier (e.g., 'feastables')
+ * @returns {THREE.Sprite} The sprite object (add to scene)
+ */
+export function createStandalonePickup(position, itemTexturePath, itemType) {
+  // Load the item texture
+  const textureLoader = new THREE.TextureLoader();
+  const itemTexture = textureLoader.load(itemTexturePath);
+  
+  // Use Sprite for billboard effect (always faces camera like a pickup item)
+  const itemMaterial = new THREE.SpriteMaterial({
+    map: itemTexture,
+    transparent: true
+  });
+  
+  const itemSprite = new THREE.Sprite(itemMaterial);
+  
+  // Scale the sprite (width, height) - same as table items
+  itemSprite.scale.set(0.6, 0.75, 1);
+  
+  // Position the sprite at the specified world position
+  itemSprite.position.copy(position);
+  
+  // Store reference for animation updates
+  itemSprite.userData.isPickupItem = true;
+  itemSprite.userData.baseY = position.y;
+  
+  // Store in tables array for pickup detection and animation
+  tables.push({
+    sprite: itemSprite,
+    position: position.clone(),
+    itemType: itemType,
+    pickedUp: false
+  });
+  
+  return itemSprite;
+}

@@ -42,6 +42,13 @@ let cohenRandomPlayTimer = 0;
 let cohenNextRandomPlayTime = 0;
 let cohenInitialized = false;
 
+// Mr. Beast audio state
+let mrBeastAudio = null;
+let mrBeastNpc = null;
+let mrBeastRandomPlayTimer = 0;
+let mrBeastNextRandomPlayTime = 0;
+let mrBeastInitialized = false;
+
 // Audio parameters
 const MIN_DISTANCE = 2.0;  // Inside this distance → max volume
 const MAX_DISTANCE = 15.0;  // Outside this distance → silent
@@ -638,4 +645,122 @@ function scheduleCohenRandomPlay() {
   const randomInterval = THREE.MathUtils.randFloat(MIN_RANDOM_INTERVAL, MAX_RANDOM_INTERVAL);
   cohenNextRandomPlayTime = randomInterval;
   cohenRandomPlayTimer = 0;
+}
+
+/**
+ * Initialize proximity audio for Mr. Beast NPC
+ * @param {THREE.AudioListener} listener - Audio listener attached to camera
+ * @param {NPCSprite} npc - The Mr. Beast NPC sprite object
+ */
+export function initMrBeastAudio(listener, npc) {
+  if (mrBeastInitialized) {
+    console.warn('Mr. Beast audio already initialized');
+    return;
+  }
+
+  if (!listener) {
+    console.error('Audio listener is required for Mr. Beast audio');
+    return;
+  }
+
+  if (!npc) {
+    console.warn('Mr. Beast NPC not found - audio will not be initialized');
+    return;
+  }
+
+  mrBeastNpc = npc;
+
+  // Create positional audio attached to Mr. Beast NPC sprite
+  const audioLoader = new THREE.AudioLoader();
+  mrBeastAudio = new THREE.PositionalAudio(listener);
+  
+  // Position audio at NPC location (relative to sprite, which is at NPC position)
+  mrBeastAudio.position.set(0, 0, 0); // Relative to sprite parent
+  
+  // Load audio file
+  audioLoader.load(
+    '/beast.mp3',
+    (buffer) => {
+      mrBeastAudio.setBuffer(buffer);
+      // Disable automatic distance model - we'll control volume manually for smooth ramping
+      mrBeastAudio.setRefDistance(1);
+      mrBeastAudio.setMaxDistance(MAX_DISTANCE * 2); // Set far enough to not interfere
+      mrBeastAudio.setRolloffFactor(0); // Disable rolloff - we handle it manually
+      mrBeastAudio.setLoop(false); // Play once, not looping
+      mrBeastAudio.setVolume(0); // Start at 0, will be controlled by distance
+      
+      // Attach to NPC sprite (audio will follow NPC position automatically)
+      mrBeastNpc.sprite.add(mrBeastAudio);
+      
+      // Schedule first random play
+      scheduleMrBeastRandomPlay();
+      
+      mrBeastInitialized = true;
+      console.log('Mr. Beast audio initialized successfully');
+    },
+    undefined,
+    (error) => {
+      console.error('Failed to load Mr. Beast audio:', error);
+    }
+  );
+}
+
+/**
+ * Update proximity audio for Mr. Beast based on player distance and random playback timer
+ * @param {number} deltaTime - Time since last frame in seconds
+ * @param {THREE.Vector3} playerPosition - Current player/camera position
+ */
+export function updateMrBeastAudio(deltaTime, playerPosition) {
+  if (!mrBeastInitialized || !mrBeastAudio || !mrBeastNpc) {
+    return;
+  }
+
+  // PositionalAudio is attached to sprite, so it automatically follows NPC position
+  // No need to manually update position
+
+  // Calculate distance from player to Mr. Beast NPC
+  const distance = playerPosition.distanceTo(mrBeastNpc.position);
+
+  // Calculate target volume based on distance
+  let targetVolume = 0;
+  if (distance <= MIN_DISTANCE) {
+    targetVolume = 1.0; // Max volume when close
+  } else if (distance >= MAX_DISTANCE) {
+    targetVolume = 0.0; // Silent when far
+  } else {
+    // Linear interpolation between min and max distance
+    const t = 1.0 - (distance - MIN_DISTANCE) / (MAX_DISTANCE - MIN_DISTANCE);
+    targetVolume = Math.max(0, Math.min(1, t));
+  }
+
+  // Apply master volume multiplier
+  targetVolume *= getMasterVolume();
+  
+  // Smooth volume ramping to prevent popping
+  const currentVolume = mrBeastAudio.getVolume();
+  const smoothedVolume = currentVolume + (targetVolume - currentVolume) * VOLUME_SMOOTH_FACTOR;
+  mrBeastAudio.setVolume(smoothedVolume);
+
+  // Update random playback timer
+  mrBeastRandomPlayTimer += deltaTime;
+  
+  // Check if it's time for a random play
+  if (mrBeastRandomPlayTimer >= mrBeastNextRandomPlayTime) {
+    // Only play if not already playing
+    if (!mrBeastAudio.isPlaying) {
+      mrBeastAudio.play();
+    }
+    
+    // Schedule next random play
+    scheduleMrBeastRandomPlay();
+  }
+}
+
+/**
+ * Schedule the next random playback time for Mr. Beast
+ */
+function scheduleMrBeastRandomPlay() {
+  const randomInterval = THREE.MathUtils.randFloat(MIN_RANDOM_INTERVAL, MAX_RANDOM_INTERVAL);
+  mrBeastNextRandomPlayTime = randomInterval;
+  mrBeastRandomPlayTimer = 0;
 }

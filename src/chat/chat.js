@@ -106,14 +106,13 @@ export const CHARACTERS = {
     color: '#ff9ff3', // Pink
     style: 'dramatic',
     phrases: [
-      'Honey, this prison drama is better than any reality show I\'ve produced.',
-      'The tea in here is HOT, and I don\'t mean the coffee.',
-      'If I had a camera crew, this place would be ratings gold.',
-      'These inmates have more plot twists than a Housewives reunion.',
-      'I\'m taking mental notes for my next prison documentary pitch.',
-      'The gossip in this cell block is absolutely scandalous!',
-      'Who needs Bravo when you have this much drama behind bars?',
-      'I\'m basically doing field research for my next tell-all book.'
+      'they call me rat now but i was the cleaner',
+      'my ndas have ndas good luck kid',
+      'donald who? never heard of him',
+      'yeah this is not even that bad',
+      'why are people making memes of me',
+      'lowkey i just placed on a trade on me getting pardoned',
+      'deadass took a bullet for that man bro',
     ]
   },
   '6ix9ine': {

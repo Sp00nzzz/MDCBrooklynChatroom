@@ -15,6 +15,7 @@ import * as THREE from 'three';
 import { getSelectedItemType, getSelectedSlot } from './ui/hotbar.js';
 import { setSelected as setBabyOilSelected } from './items/babyoilItem.js';
 import { setSelected as setMarlboroSelected } from './items/marlboroItem.js';
+import { setSelected as setFeastablesSelected } from './items/feastablesItem.js';
 import { hideHeldItem, showHeldItem, switchHeldItem } from './ui/heldItemHud.js';
 import { isCameraViewEnabled, toggleCameraView } from './ui/cameraView.js';
 import { onNPCHitPush, isFightActive, canAddAngerFromPush } from './ui/angerSystem.js';
@@ -160,6 +161,8 @@ function forceHideHeldVisuals() {
     setBabyOilSelected(false, true); // Skip animation
   } else if (currentItemType === 'marlboro') {
     setMarlboroSelected(false, true); // Skip animation
+  } else if (currentItemType === 'feastables') {
+    setFeastablesSelected(false, true); // Skip animation
   } else if (currentSlot === 1 && isCameraViewEnabled()) {
     toggleCameraView(true); // Skip animation
   } else if (currentItemType) {
@@ -189,6 +192,10 @@ function forceRestoreHeldVisuals() {
     // Restore marlboro - use switchHeldItem to snap to idle pose
     switchHeldItem('/smoking1.png', true); // Force instant, no animation
     setMarlboroSelected(true, true); // Skip animation
+  } else if (activeItemType === 'feastables') {
+    // Restore feastables - use switchHeldItem to snap to idle pose
+    switchHeldItem('/feastablehand.png', true); // Force instant, no animation
+    setFeastablesSelected(true, true); // Skip animation
   } else if (activeSlot === 1) {
     // Restore camera if slot 1 is selected
     // Check if camera should be enabled (slot 1 selected means camera should be up)
